@@ -1,15 +1,18 @@
-{
+﻿{
   "expo": {
-    "name": "grottoworks_mobile",
+    "name": "GrottoWorks",
     "slug": "grottoworks_mobile",
+    "scheme": "grottoworks",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "vn.grottoworks.mobile"
     },
     "android": {
+      "package": "vn.grottoworks.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -20,6 +23,25 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0A5C36",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ứng dụng cần truy cập thư viện ảnh để đính kèm ảnh minh chứng hoàn thành nhiệm vụ.",
+          "cameraPermission": "Ứng dụng cần quyền máy ảnh để chụp ảnh minh chứng hoàn thành nhiệm vụ.",
+          "microphonePermission": false
+        }
+      ]
+    ]
   }
 }
