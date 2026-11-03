@@ -1,8 +1,8 @@
-﻿// ScreenHeader — tiêu đề màn hình căn giữa, nổi bật (cỡ display, đậm, màu ink),
+// ScreenHeader — tiêu đề màn hình căn giữa, nổi bật (cỡ display, đậm, màu ink),
 // kèm phụ đề tuỳ chọn. Dùng chung cho các tab để header đồng nhất.
 import { StyleSheet, View } from 'react-native';
 import { AppText } from './AppText';
-import { colors, spacing } from '../theme/tokens';
+import { spacing } from '../theme/tokens';
 
 export function ScreenHeader({ title, sub }: { title: string; sub?: string }) {
   return (

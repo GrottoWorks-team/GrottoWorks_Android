@@ -1,4 +1,4 @@
-﻿// Screen — wrapper (SafeArea) + nền gradient dải màu đặc trưng của app: đậm hơn
+// Screen — wrapper (SafeArea) + nền gradient dải màu đặc trưng của app: đậm hơn
 // ở đầu màn hình rồi nhạt dần xuống dưới về màu canvas. Dùng cho mọi màn hình.
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StyleSheet, View } from 'react-native';

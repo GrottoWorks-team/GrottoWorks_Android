@@ -1,4 +1,4 @@
-﻿// Avatar — vòng tròn với chữ cái đầu tên, nền màu sinh từ `avatarHue`.
+// Avatar — vòng tròn với chữ cái đầu tên, nền màu sinh từ `avatarHue`.
 // Không cần ảnh: màu (HSL) tất định từ hue của user để mỗi người một màu riêng.
 import { StyleSheet, View } from 'react-native';
 import { AppText } from './AppText';

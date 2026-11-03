@@ -1,4 +1,4 @@
-﻿// Stack cho tab Nhiệm vụ: danh sách (2 sub-tab) → chi tiết việc của mình
+// Stack cho tab Nhiệm vụ: danh sách (2 sub-tab) → chi tiết việc của mình
 // hoặc chi tiết việc đang tuyển (để gửi đăng ký).
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';

@@ -1,6 +1,6 @@
 // Toast đơn giản cho mobile: provider + hook useToast, hiển thị ở đáy màn hình.
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, useAnimatedValue, View } from 'react-native';
 import type { ReactNode } from 'react';
 import { AppText } from './AppText';
 import { colors, radius, spacing } from '../theme/tokens';
@@ -14,7 +14,7 @@ const ToastContext = createContext<ToastValue | null>(null);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [message, setMessage] = useState<string | null>(null);
   const [kind, setKind] = useState<Kind>('info');
-  const opacity = useRef(new Animated.Value(0)).current;
+  const opacity = useAnimatedValue(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const toast = useCallback(

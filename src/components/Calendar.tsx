@@ -1,5 +1,5 @@
-﻿// Calendar tháng tự render (không dùng thư viện ngoài) — lưới 7 cột T2..CN.
-// Mỗi ngày có thể hiển thị 1 chấm giờ công (xanh) và 1 chấm việc đến hạn (cam).
+// Calendar tháng tự render (không dùng thư viện ngoài) — lưới 7 cột T2..CN.
+// Mỗi ngày có thể hiển thị 1 chấm giờ đóng góp (xanh) và 1 chấm việc đến hạn (cam).
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AppText } from './AppText';

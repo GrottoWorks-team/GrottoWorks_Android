@@ -6,6 +6,7 @@ import { initReactI18next } from 'react-i18next';
 import vi from '../locales/vi.json';
 import en from '../locales/en.json';
 
+// eslint-disable-next-line import/no-named-as-default-member -- `i18n` là instance i18next, không phải module namespace.
 void i18n.use(initReactI18next).init({
   resources: { vi: { translation: vi }, en: { translation: en } },
   lng: 'vi',

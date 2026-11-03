@@ -1,5 +1,5 @@
-﻿// Tab bar chính của TNV (5 tab, Trang chủ ở giữa):
-// Nhiệm vụ · Chấm công · Trang chủ · Thông báo · Hồ sơ.
+// Tab bar chính của TNV (5 tab, Trang chủ ở giữa):
+// Nhiệm vụ · Giờ đóng góp · Trang chủ · Thông báo · Hồ sơ.
 // Dùng Ionicons (@expo/vector-icons) — icon vector đổi màu theo trạng thái focus.
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { ComponentProps } from 'react';
