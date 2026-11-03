@@ -1,4 +1,4 @@
-﻿// Tab Nhiệm vụ: 2 sub-tab "Việc của tôi" (task được phân công) và "Đang tuyển"
+// Tab Nhiệm vụ: 2 sub-tab "Việc của tôi" (task được phân công) và "Đang tuyển"
 // (task mở đăng ký). Gộp chung để tránh tách thành tab riêng.
 import { useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
@@ -12,8 +12,9 @@ import { StatusTag } from '../../components/StatusTag';
 import { EmptyState } from '../../components/EmptyState';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useAuth } from '../../auth/AuthContext';
+import { isRealApiActive, myAssignmentStatus } from '../../api';
 import { useAreas, useMyTasks, useOpenTasks } from '../../api/hooks';
-import { assignmentStatus, skillMatchScore } from '../../types';
+import { skillMatchScore } from '../../types';
 import type { Task } from '../../types';
 import { colors, radius, spacing } from '../../theme/tokens';
 import type { TasksStackParamList } from '../../navigation/types';
@@ -39,7 +40,7 @@ export function TaskListScreen() {
 
   const filtered = useMemo(() => {
     return tasks.filter((task) => {
-      const s = assignmentStatus(task, volunteerId);
+      const s = myAssignmentStatus(task, volunteerId);
       if (filter === 'pending') return s === 'PENDING';
       if (filter === 'doing') return s === 'ACCEPTED' && task.status !== 'DONE';
       if (filter === 'done') return task.status === 'DONE';
@@ -52,9 +53,11 @@ export function TaskListScreen() {
     return [...openTasks].sort((a, b) => skillMatchScore(b, user) - skillMatchScore(a, user));
   }, [openTasks, user]);
 
+  // BE chưa trả trạng thái phân công → ẩn bộ lọc "Chờ duyệt" khi dùng dữ liệu thật.
+  const realMode = isRealApiActive();
   const FILTERS: { key: Filter; label: string }[] = [
     { key: 'all', label: t('tasks.filter.all') },
-    { key: 'pending', label: t('tasks.filter.pending') },
+    ...(realMode ? [] : [{ key: 'pending' as Filter, label: t('tasks.filter.pending') }]),
     { key: 'doing', label: t('tasks.filter.doing') },
     { key: 'done', label: t('tasks.filter.done') },
   ];
@@ -114,7 +117,7 @@ export function TaskListScreen() {
               <TaskRow
                 task={item}
                 area={areaName(item.areaId)}
-                status={assignmentStatus(item, volunteerId)}
+                status={myAssignmentStatus(item, volunteerId)}
                 onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
               />
             )}

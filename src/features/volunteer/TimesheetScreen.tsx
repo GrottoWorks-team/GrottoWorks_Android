@@ -1,5 +1,5 @@
-﻿// Chấm công dạng lịch: lưới tháng đánh dấu ngày có giờ công / có việc đến hạn.
-// Chọn 1 ngày → hiện giờ công ngày đó + việc cần làm (task chưa xong đến hạn).
+// Giờ đóng góp dạng lịch: lưới tháng đánh dấu ngày có giờ đóng góp / có việc đến hạn.
+// Chọn 1 ngày → hiện giờ đóng góp ngày đó + việc cần làm (task chưa xong đến hạn).
 // Kèm nút vào/ra ca và yêu cầu chỉnh giờ (như trước).
 import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -13,6 +13,7 @@ import { Calendar } from '../../components/Calendar';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../auth/AuthContext';
+import { isRealApiActive } from '../../api';
 import {
   useCheckIn,
   useCheckOut,
@@ -40,6 +41,9 @@ export function TimesheetScreen() {
   const checkIn = useCheckIn(volunteerId);
   const checkOut = useCheckOut(volunteerId);
   const correction = useRequestCorrection(volunteerId);
+  // BE chưa cho TNV vào/ra ca (thiếu assignmentId) và chưa có endpoint chỉnh
+  // giờ theo lý do → ẩn hành động thay vì giả lập thành công.
+  const realMode = isRealApiActive();
 
   const now = new Date();
   const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() });
@@ -116,7 +120,9 @@ export function TimesheetScreen() {
               </View>
             ) : null}
           </View>
-          {openSession ? (
+          {realMode ? (
+            <AppText variant="sub">{t('timesheets.bePending')}</AppText>
+          ) : openSession ? (
             <Button
               label={t('timesheets.checkOutAction')}
               variant="danger"
@@ -164,7 +170,7 @@ export function TimesheetScreen() {
                       {ts.checkOut ? ` · ${t('timesheets.checkOut')}: ${ts.checkOut}` : ''}
                     </AppText>
                     <StatusTag status={ts.status} />
-                    {ts.status === 'CLOSED' ? (
+                    {ts.status === 'CLOSED' && !realMode ? (
                       <Button
                         size="sm"
                         variant="outline"

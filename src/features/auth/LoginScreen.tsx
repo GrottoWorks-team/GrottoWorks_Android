@@ -1,4 +1,4 @@
-﻿// Đăng nhập TNV — nền ảnh Giáng sinh + tuyết rơi, chọn tài khoản demo
+// Đăng nhập TNV — nền ảnh Giáng sinh + tuyết rơi, chọn tài khoản demo
 // hoặc nhập email/mật khẩu.
 import { useState } from 'react';
 import {
@@ -38,8 +38,12 @@ export function LoginScreen() {
     if (!password) return setError(t('login.passwordRequired'));
     try {
       await signIn(email, password);
-    } catch {
-      setError(t('login.invalid'));
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message === 'NOT_VOLUNTEER'
+          ? t('login.notVolunteer')
+          : t('login.invalid'),
+      );
     }
   };
 
@@ -118,7 +122,7 @@ export function LoginScreen() {
           </Card>
 
           <AppText variant="sub" style={styles.demoTitle}>
-            {t('login.demoAccounts')}
+            {t('login.demoAccounts', { password: DEMO_PASSWORD })}
           </AppText>
           <View style={styles.chips}>
             {DEMO_EMAILS.map((e) => (

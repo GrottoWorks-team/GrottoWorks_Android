@@ -14,14 +14,15 @@ const TONES: Record<Tone, { bg: string; fg: string; glyph: string }> = {
 
 const MAP: Record<string, Tone> = {
   DONE: 'ok', APPROVED: 'ok', RESOLVED: 'ok', ENOUGH: 'ok', CLOSED: 'ok',
-  ON_TRACK: 'ok', GOOD: 'ok', ACCEPTED: 'ok',
+  ON_TRACK: 'ok', GOOD: 'ok', ACCEPTED: 'ok', RECEIVED: 'ok',
   TODO: 'warn', DOING: 'warn', OPEN: 'warn', PLANNED: 'warn', PENDING: 'warn',
-  INCOMING: 'warn', RECEIVED_PARTIAL: 'warn', PENDING_FIX: 'warn',
-  REVIEW: 'warn', DRAFT: 'soft',
+  INCOMING: 'warn', RECEIVED_PARTIAL: 'warn', PARTIALLY_RECEIVED: 'warn', PENDING_FIX: 'warn',
+  REVIEW: 'warn', DRAFT: 'soft', PLEDGED: 'warn',
   // Trạng thái đơn đăng ký tình nguyện: chờ duyệt dùng tone "warn", đã duyệt "ok".
   REG_PENDING: 'warn',
   LATE: 'alert', REVISE: 'alert', REJECTED: 'alert', SHORTAGE: 'alert',
   AT_RISK: 'alert', DECLINED: 'alert',
+  CANCELLED: 'soft', CANCELED: 'soft',
 };
 
 export function StatusTag({ status }: { status: string }) {

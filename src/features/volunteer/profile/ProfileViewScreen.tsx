@@ -1,4 +1,4 @@
-﻿// Hồ sơ TNV — CHẾ ĐỘ XEM (read-only). Chỉnh sửa nằm ở ProfileEditScreen.
+// Hồ sơ TNV — CHẾ ĐỘ XEM (read-only). Chỉnh sửa nằm ở ProfileEditScreen.
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
@@ -11,11 +11,13 @@ import { Button } from '../../../components/Button';
 import { Avatar } from '../../../components/Avatar';
 import { ScreenHeader } from '../../../components/ScreenHeader';
 import { useAuth } from '../../../auth/AuthContext';
-import { useMyTimesheets } from '../../../api/hooks';
+import { useMyRecognition, useMyTimesheets } from '../../../api/hooks';
 import { colors, radius, spacing } from '../../../theme/tokens';
 import type { ProfileStackParamList } from '../../../navigation/types';
 
 type Nav = NativeStackNavigationProp<ProfileStackParamList>;
+
+const fmtDay = (iso: string) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—');
 
 export function ProfileViewScreen() {
   const { t } = useTranslation();
@@ -23,10 +25,13 @@ export function ProfileViewScreen() {
   const navigation = useNavigation<Nav>();
   const volunteerId = user?.id ?? '';
   const { data: timesheets = [] } = useMyTimesheets(volunteerId);
+  const { data: recognition } = useMyRecognition(volunteerId);
 
   if (!user) return null;
 
   const totalHours = Math.round(timesheets.reduce((s, ts) => s + ts.hours, 0) * 10) / 10;
+  const points = recognition?.totalPoints ?? user.points;
+  const contributions = recognition?.contributions ?? 0;
   const version = Constants.expoConfig?.version ?? '1.0.0';
   const build =
     (Constants.expoConfig?.android?.versionCode ??
@@ -54,8 +59,9 @@ export function ProfileViewScreen() {
             {user.email}
           </AppText>
           <View style={styles.stats}>
-            <Stat label={t('profile.points')} value={String(user.points)} />
+            <Stat label={t('profile.points')} value={String(points)} />
             <Stat label={t('profile.hours')} value={`${totalHours}${t('tasks.hours')}`} />
+            <Stat label={t('profile.contributionsCount')} value={String(contributions)} />
           </View>
           <Button
             label={t('profile.edit')}
@@ -63,6 +69,17 @@ export function ProfileViewScreen() {
             onPress={() => navigation.navigate('ProfileEdit')}
             style={styles.editBtn}
           />
+        </Card>
+
+        {/* Liên hệ / giới thiệu (BE: PATCH /users/me) */}
+        <Card style={styles.card}>
+          <AppText variant="label">{t('profile.contact')}</AppText>
+          <InfoRow label={t('profile.phone')} value={user.phone || '—'} />
+          {user.introduction ? (
+            <AppText variant="sub">{user.introduction}</AppText>
+          ) : (
+            <AppText variant="sub">{t('profile.noIntroduction')}</AppText>
+          )}
         </Card>
 
         {/* Kỹ năng (chỉ xem) */}
@@ -83,21 +100,41 @@ export function ProfileViewScreen() {
           )}
         </Card>
 
-        {/* Lịch rảnh (chỉ xem) */}
+        {/* Lịch rảnh (chỉ xem) — khoảng thời gian TNV khai báo */}
         <Card style={styles.card}>
           <AppText variant="label">{t('profile.availability')}</AppText>
-          <View style={styles.chips}>
-            {(['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'] as const).map((d) => {
-              const on = (user.availability ?? []).includes(d);
-              return (
-                <View key={d} style={[styles.day, on ? styles.dayOn : null]}>
-                  <AppText variant="h2" color={on ? '#FFFFFF' : colors.faint}>
-                    {d}
-                  </AppText>
-                </View>
-              );
-            })}
-          </View>
+          {(user.availability ?? []).length === 0 ? (
+            <AppText variant="sub">{t('profile.noAvailability')}</AppText>
+          ) : (
+            (user.availability ?? []).map((slot, index) => (
+              <View key={`av-${index}`} style={styles.slotRow}>
+                <AppText variant="body">
+                  {fmtDay(slot.availableFrom)} → {fmtDay(slot.availableTo)}
+                </AppText>
+                {slot.note ? <AppText variant="sub">{slot.note}</AppText> : null}
+              </View>
+            ))
+          )}
+        </Card>
+
+        {/* Đóng góp: xem lịch sử, cam kết quyên góp, cho mượn dụng cụ */}
+        <Card style={styles.card}>
+          <AppText variant="label">{t('profile.contributionActions')}</AppText>
+          <Button
+            label={t('contrib.title')}
+            variant="outline"
+            onPress={() => navigation.navigate('MyContributions')}
+          />
+          <Button
+            label={t('pledge.title')}
+            variant="outline"
+            onPress={() => navigation.navigate('Pledge')}
+          />
+          <Button
+            label={t('loan.title')}
+            variant="outline"
+            onPress={() => navigation.navigate('LoanOffer')}
+          />
         </Card>
 
         {/* Phiên bản ứng dụng */}
@@ -157,17 +194,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.panel,
   },
   chipOn: { backgroundColor: colors.pine, borderColor: colors.pine },
-  day: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.hairline,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.panel,
-  },
-  dayOn: { backgroundColor: colors.pine, borderColor: colors.pine },
+  slotRow: { paddingVertical: spacing.xs, gap: 2 },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',

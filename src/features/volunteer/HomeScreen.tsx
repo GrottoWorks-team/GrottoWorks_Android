@@ -1,5 +1,6 @@
-// Trang chủ TNV: giờ công (nổi bật), lời mời đang chờ, đơn đăng ký của tôi,
+// Trang chủ TNV: giờ đóng góp (nổi bật), lời mời đang chờ, đơn đăng ký của tôi,
 // gợi ý task đang tuyển, nhiệm vụ đang làm.
+import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
@@ -13,8 +14,9 @@ import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/StatusTag';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useAuth } from '../../auth/AuthContext';
+import { myAssignmentStatus } from '../../api';
 import { useAreas, useMyRegs, useMyTasks, useMyTimesheets, useOpenTasks, useTask } from '../../api/hooks';
-import { assignmentStatus, skillMatchScore } from '../../types';
+import { skillMatchScore } from '../../types';
 import type { VolunteerReg } from '../../types';
 import { colors, fontSize, spacing } from '../../theme/tokens';
 import type { MainTabParamList, TasksStackParamList } from '../../navigation/types';
@@ -38,15 +40,17 @@ export function HomeScreen() {
   const { data: areas = [] } = useAreas();
 
   const areaName = (id: string) => areas.find((a) => a.id === id)?.name ?? '—';
-  const pendingInvites = tasks.filter((task) => assignmentStatus(task, volunteerId) === 'PENDING');
+  const pendingInvites = tasks.filter((task) => myAssignmentStatus(task, volunteerId) === 'PENDING');
   const activeTasks = tasks.filter((task) => {
-    const s = assignmentStatus(task, volunteerId);
+    const s = myAssignmentStatus(task, volunteerId);
     return s === 'ACCEPTED' && task.status !== 'DONE';
   });
-  const weekHours = timesheets.reduce((sum, ts) => {
-    const weekAgo = Date.now() - 7 * 86400_000;
-    return new Date(ts.date).getTime() >= weekAgo ? sum + ts.hours : sum;
-  }, 0);
+  // Mốc "7 ngày trước" chốt 1 lần khi mở màn hình — tránh gọi Date.now() mỗi render.
+  const [weekAgoMs] = useState(() => Date.now() - 7 * 86400_000);
+  const weekHours = timesheets.reduce(
+    (sum, ts) => (new Date(ts.date).getTime() >= weekAgoMs ? sum + ts.hours : sum),
+    0,
+  );
   const totalHours = timesheets.reduce((sum, ts) => sum + ts.hours, 0);
   const round1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -62,7 +66,7 @@ export function HomeScreen() {
           sub={t('app.parish')}
         />
 
-        {/* Giờ công — điểm nhấn chính của trang chủ */}
+        {/* Giờ đóng góp — điểm nhấn chính của trang chủ */}
         <Card style={styles.hoursCard}>
           <AppText variant="label" color={colors.pineLight}>
             {t('home.weekHours')}

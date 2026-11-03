@@ -13,6 +13,7 @@ import { PhotoGallery, PhotoPicker } from '../../components/PhotoPicker';
 import { StatusTag } from '../../components/StatusTag';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../auth/AuthContext';
+import { isRealApiActive } from '../../api';
 import {
   useAreas,
   useRespondAssignment,
@@ -33,11 +34,13 @@ export function TaskDetailScreen() {
   const { params } = useRoute<DetailRoute>();
   const volunteerId = user?.id ?? '';
 
-  const { data: task, isPending } = useTask(params.taskId);
+  const { data: task, isPending, isError } = useTask(params.taskId);
   const { data: areas = [] } = useAreas();
   const { data: materials = [] } = useTaskMaterials();
   const respond = useRespondAssignment(volunteerId);
   const submitReview = useSubmitReview(volunteerId, params.taskId);
+  // BE chưa trả mã phân công cho TNV nên chưa phản hồi/nộp minh chứng được.
+  const realMode = isRealApiActive();
 
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState('');
@@ -48,11 +51,22 @@ export function TaskDetailScreen() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoError, setPhotoError] = useState(false);
 
-  if (isPending || !task) {
+  if (isPending) {
     return (
       <Screen>
         <View style={styles.center}>
           <AppText variant="sub">{t('common.loading')}</AppText>
+        </View>
+      </Screen>
+    );
+  }
+
+  // BE trả 403/404 khi nhiệm vụ ngoài phạm vi của TNV → báo lỗi thay vì treo.
+  if (isError || !task) {
+    return (
+      <Screen>
+        <View style={styles.center}>
+          <AppText variant="sub">{t('common.error')}</AppText>
         </View>
       </Screen>
     );
@@ -184,6 +198,15 @@ export function TaskDetailScreen() {
             style={styles.card}
           />
         )}
+
+        {/* BE chưa trả assignmentId → chưa phản hồi phân công / nộp minh chứng
+            được trên mobile. Hiện ghi chú thay vì giả lập thành công. */}
+        {realMode && !myStatus && task.status !== 'DONE' ? (
+          <Card style={styles.card}>
+            <AppText variant="label">{t('tasks.bePendingTitle')}</AppText>
+            <AppText variant="sub">{t('tasks.bePending')}</AppText>
+          </Card>
+        ) : null}
 
         {/* Ảnh minh chứng đã nộp (cho trưởng khu xem để xác nhận hoàn thành). */}
         {task.submittedPhotoUris && task.submittedPhotoUris.length > 0 ? (

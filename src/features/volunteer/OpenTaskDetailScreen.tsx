@@ -1,4 +1,4 @@
-﻿// Chi tiết nhiệm vụ đang tuyển: thông tin + kỹ năng + tiêu chí, cùng hành động
+// Chi tiết nhiệm vụ đang tuyển: thông tin + kỹ năng + tiêu chí, cùng hành động
 // đăng ký tham gia (gửi VolunteerReg PENDING) hoặc rút đơn khi còn chờ duyệt.
 import { useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -12,6 +12,7 @@ import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/StatusTag';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../auth/AuthContext';
+import { isRealApiActive } from '../../api';
 import {
   useAreas,
   useCancelRegistration,
@@ -33,21 +34,33 @@ export function OpenTaskDetailScreen() {
   const { params } = useRoute<DetailRoute>();
   const volunteerId = user?.id ?? '';
 
-  const { data: task, isPending } = useTask(params.taskId);
+  const { data: task, isPending, isError } = useTask(params.taskId);
   const { data: areas = [] } = useAreas();
   const { data: materials = [] } = useTaskMaterials();
   const { data: myReg } = useMyReg(params.taskId, volunteerId);
   const register = useRegisterForTask(volunteerId);
   const cancel = useCancelRegistration(volunteerId);
+  // BE chưa có endpoint huỷ đơn đăng ký của TNV.
+  const realMode = isRealApiActive();
 
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState('');
 
-  if (isPending || !task) {
+  if (isPending) {
     return (
       <Screen>
         <View style={styles.center}>
           <AppText variant="sub">{t('common.loading')}</AppText>
+        </View>
+      </Screen>
+    );
+  }
+
+  if (isError || !task) {
+    return (
+      <Screen>
+        <View style={styles.center}>
+          <AppText variant="sub">{t('common.error')}</AppText>
         </View>
       </Screen>
     );
@@ -66,8 +79,19 @@ export function OpenTaskDetailScreen() {
       setOpen(false);
       setNote('');
       toast(t('open.registered', { name: task.title }));
-    } catch {
-      toast(t('common.error'), 'alert');
+    } catch (err) {
+      const code = err instanceof Error ? err.message : '';
+      const message =
+        code === 'ALREADY_REGISTERED'
+          ? t('open.alreadyRegistered')
+          : code === 'TASK_FULL'
+            ? t('open.fullRegister')
+            : code === 'SKILL_MISMATCH'
+              ? t('open.skillMismatch')
+              : code === 'TASK_NOT_OPEN'
+                ? t('open.notOpen')
+                : t('common.error');
+      toast(message, 'alert');
     }
   };
 
@@ -176,13 +200,15 @@ export function OpenTaskDetailScreen() {
                 {t('regs.note')}: {myReg.note}
               </AppText>
             ) : null}
-            <Button
-              label={t('open.cancelReg')}
-              variant="outline"
-              onPress={onCancel}
-              loading={cancel.isPending}
-              style={styles.actionBtn}
-            />
+            {realMode ? null : (
+              <Button
+                label={t('open.cancelReg')}
+                variant="outline"
+                onPress={onCancel}
+                loading={cancel.isPending}
+                style={styles.actionBtn}
+              />
+            )}
           </Card>
         ) : myReg && myReg.status === 'REJECTED' ? (
           <Card style={[styles.card, styles.rejectCard]}>

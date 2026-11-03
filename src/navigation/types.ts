@@ -1,4 +1,4 @@
-﻿// Định nghĩa route params cho toàn app — dùng cho typed navigation.
+// Định nghĩa route params cho toàn app — dùng cho typed navigation.
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootStackParamList = {
@@ -6,7 +6,7 @@ export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
 };
 
-// 5 tab, Trang chủ nằm chính giữa: Nhiệm vụ · Chấm công · Trang chủ · Thông báo · Hồ sơ.
+// 5 tab, Trang chủ nằm chính giữa: Nhiệm vụ · Giờ đóng góp · Trang chủ · Thông báo · Hồ sơ.
 // Tab Nhiệm vụ chứa stack lồng → khai báo NavigatorScreenParams để điều hướng
 // tới TaskDetail/OpenDetail từ tab khác (ví dụ Trang chủ).
 export type MainTabParamList = {
@@ -25,15 +25,19 @@ export type TasksStackParamList = {
   OpenDetail: { taskId: string };
 };
 
-// Stack lồng trong tab Hồ sơ: xem → chỉnh sửa.
+// Stack lồng trong tab Hồ sơ: xem → chỉnh sửa / đóng góp / quyên góp / cho mượn.
 export type ProfileStackParamList = {
   ProfileView: undefined;
   ProfileEdit: undefined;
+  MyContributions: undefined;
+  Pledge: undefined;
+  LoanOffer: undefined;
 };
 
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace ReactNavigation {
+    // Interface rỗng là chủ ý: phải merge vào khai báo sẵn có của React Navigation.
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
     interface RootParamList extends RootStackParamList {}
   }
 }
