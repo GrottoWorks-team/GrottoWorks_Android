@@ -11,10 +11,10 @@ Xây dựng bằng **Expo (SDK 57) + React Native + TypeScript + React Navigatio
 | Tab | Chức năng |
 | --- | --- |
 | **Nhiệm vụ** | 2 sub-tab: **Việc của tôi** (lọc chờ/đang làm/xong, chi tiết, **nhận / từ chối kèm lý do**, gửi duyệt hoàn thành) và **Đang tuyển** (task mở đăng ký, sắp theo độ khớp kỹ năng, **gửi đơn đăng ký** + **rút đơn**) |
-| **Chấm công** | **Lịch tháng** đánh dấu ngày có giờ công / có việc đến hạn; chọn ngày xem giờ công + việc cần làm; chấm công vào/ra ca, yêu cầu chỉnh giờ |
-| **Trang chủ** (giữa) | **Giờ công tuần (nổi bật)**, lời mời đang chờ, đơn đăng ký của tôi, gợi ý nhiệm vụ đang tuyển, nhiệm vụ đang làm |
-| **Thông báo** | Hoạt động liên quan tới TNV (mời phân công, **kết quả đăng ký**, ghi giờ…) |
-| **Hồ sơ** | **Chế độ xem** (avatar theo màu riêng, tên/email, điểm & giờ công, kỹ năng, lịch rảnh, **thông tin phiên bản**) → nút **Chỉnh sửa** mở trang phụ để cập nhật kỹ năng/lịch rảnh; đăng xuất |
+| **Giờ đóng góp** | **Lịch tháng** đánh dấu ngày có giờ đóng góp / có việc đến hạn; chọn ngày xem giờ đóng góp + việc cần làm; check-in/check-out, yêu cầu chỉnh giờ |
+| **Trang chủ** (giữa) | **Giờ đóng góp tuần (nổi bật)**, lời mời đang chờ, đơn đăng ký của tôi, gợi ý nhiệm vụ đang tuyển, nhiệm vụ đang làm |
+| **Thông báo** | Thông báo in-app của TNV (mời phân công, **kết quả đăng ký**, ghi giờ…) |
+| **Hồ sơ** | **Chế độ xem** (avatar theo màu riêng, tên/email, điểm & giờ đóng góp, kỹ năng, thời gian rảnh, **thông tin phiên bản**) → nút **Chỉnh sửa** mở trang phụ để cập nhật hồ sơ/kỹ năng/thời gian rảnh; đăng xuất |
 
 ## Flow đăng ký tình nguyện (TNV chủ động)
 
