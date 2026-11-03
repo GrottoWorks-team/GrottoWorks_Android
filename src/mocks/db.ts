@@ -1,9 +1,9 @@
-﻿// Mock DB cho mobile: seed trong bộ nhớ + persist thay đổi vào AsyncStorage.
+// Mock DB cho mobile: seed trong bộ nhớ + persist thay đổi vào AsyncStorage.
 // Thay thế MSW + localStorage của webapp. Mọi mutation load → sửa → save.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ActivityLog, Task, Timesheet, User, VolunteerReg, WorkArea } from '../types';
 
-import { activityLogs, areas, materials, tasks, timesheets, users, volunteerRegs } from './seed';
+import { activityLogs, areas, communities, materials, tasks, timesheets, users, volunteerRegs } from './seed';
 
 const KEY = 'grotto-mobile-db-v2';
 
@@ -15,6 +15,7 @@ export interface Db {
   activityLogs: ActivityLog[];
   volunteerRegs: VolunteerReg[];
   materials: typeof materials;
+  communities: typeof communities;
 }
 
 const freshDb = (): Db => ({
@@ -25,6 +26,7 @@ const freshDb = (): Db => ({
   activityLogs: structuredClone(activityLogs),
   volunteerRegs: structuredClone(volunteerRegs),
   materials: structuredClone(materials),
+  communities: structuredClone(communities),
 });
 
 let cache: Db | null = null;

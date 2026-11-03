@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { User } from '../types';
 import { login as apiLogin } from '../api';
+import { clearTokens } from '../api/client';
 
 const SESSION_KEY = 'grotto-mobile-session-v1';
 
@@ -25,12 +26,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [restoring, setRestoring] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
 
-  // Khôi phục phiên khi app khởi động.
+  // Khôi phục phiên khi app khởi động. App chỉ dành cho TNV → bỏ phiên khác vai.
   useEffect(() => {
     (async () => {
       try {
         const raw = await AsyncStorage.getItem(SESSION_KEY);
-        if (raw) setUserState(JSON.parse(raw) as User);
+        if (raw) {
+          const saved = JSON.parse(raw) as User;
+          if (saved?.role === 'VOLUNTEER') setUserState(saved);
+          else await AsyncStorage.removeItem(SESSION_KEY);
+        }
       } catch {
         // phiên hỏng → bắt đầu lại
       } finally {
@@ -43,6 +48,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSigningIn(true);
     try {
       const u = await apiLogin(email, password);
+      // Nghiệp vụ §4.6: app mobile chỉ dành cho tình nguyện viên.
+      if (u.role !== 'VOLUNTEER') {
+        await clearTokens();
+        throw new Error('NOT_VOLUNTEER');
+      }
       setUserState(u);
       await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(u));
     } finally {
@@ -52,6 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     setUserState(null);
+    // Xoá cả token BE → lần đăng nhập sau bắt đầu lại từ đầu.
+    await clearTokens();
     await AsyncStorage.removeItem(SESSION_KEY);
   }, []);
 

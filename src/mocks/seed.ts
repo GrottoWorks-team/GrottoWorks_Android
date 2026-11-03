@@ -1,6 +1,6 @@
-﻿// Seed dữ liệu mẫu cho app mobile — trích và đồng bộ với webapp
+// Seed dữ liệu mẫu cho app mobile — trích và đồng bộ với webapp
 // (grottoworks/src/mocks/seed/*). Đủ để volunteer app chạy offline: tài khoản
-// TNV demo, khu vực, nhiệm vụ (được phân công + đang tuyển), chấm công,
+// TNV demo, khu vực, nhiệm vụ (được phân công + đang tuyển), giờ đóng góp,
 // thông báo, và các đơn đăng ký tình nguyện. Toàn bộ deterministic (không random).
 import type {
   ActivityLog, Community, Parish, Task, Timesheet, User, VolunteerReg, WorkArea,
@@ -19,10 +19,16 @@ const S = {
   van: ['Vận chuyển'], log: ['Logistics'], son: ['Sơn'],
 };
 
-// Tài khoản demo TNV dùng để đăng nhập app mobile. Mật khẩu chung: grotto.
+// Tài khoản demo TNV dùng để đăng nhập app mobile. Mật khẩu chung: grotto123.
+const slot = (from: string, to: string, note?: string) => ({
+  availableFrom: from,
+  availableTo: to,
+  ...(note ? { note } : {}),
+});
+
 export const users: User[] = [
-  { id: 'v1', name: 'Gioan Bùi Văn Hùng', email: 'volunteer@grottoworks.vn', role: 'VOLUNTEER', communityId: 'c3', skills: S.moc, points: 95, avatarHue: 30, availability: ['T6', 'T7'] },
-  { id: 'v2', name: 'Agnês Trần Ngọc Anh', email: 'volunteer2@grottoworks.vn', role: 'VOLUNTEER', communityId: 'c1', skills: S.tri, points: 80, avatarHue: 330, availability: ['T3', 'T5', 'T7', 'CN'] },
+  { id: 'v1', name: 'Gioan Bùi Văn Hùng', email: 'volunteer@grottoworks.vn', role: 'VOLUNTEER', communityId: 'c3', skills: S.moc, points: 95, avatarHue: 30, availability: [slot('2026-11-06T01:00:00Z', '2026-11-06T10:00:00Z'), slot('2026-11-07T01:00:00Z', '2026-11-07T10:00:00Z')] },
+  { id: 'v2', name: 'Agnês Trần Ngọc Anh', email: 'volunteer2@grottoworks.vn', role: 'VOLUNTEER', communityId: 'c1', skills: S.tri, points: 80, avatarHue: 330, availability: [slot('2026-11-03T01:00:00Z', '2026-11-03T10:00:00Z'), slot('2026-11-05T01:00:00Z', '2026-11-05T10:00:00Z')] },
   { id: 'u3', name: 'Đaminh Hoàng Văn Tùng', email: 'leader@grottoworks.vn', role: 'LEADER', communityId: 'c1', skills: S.moc, points: 85, avatarHue: 33 },
 ];
 
@@ -102,7 +108,7 @@ export const volunteerRegs: VolunteerReg[] = [
   { id: 'vr3', taskId: 'mt6', volunteerId: 'v2', status: 'REJECTED', rejectReason: 'Cần người biết sơn, em chưa có kinh nghiệm.', at: '2026-11-04T20:00:00' },
 ];
 
-// Chấm công của v1 — 3 bản ghi gần đây.
+// Giờ đóng góp của v1 — 3 bản ghi gần đây.
 export const timesheets: Timesheet[] = [
   { id: 'ts1', volunteerId: 'v1', date: '2026-11-03', checkIn: '08:00', checkOut: '12:00', hours: 4, status: 'CLOSED' },
   { id: 'ts2', volunteerId: 'v1', date: '2026-11-05', checkIn: '14:00', checkOut: '18:30', hours: 4.5, status: 'CLOSED' },
@@ -112,7 +118,7 @@ export const timesheets: Timesheet[] = [
 // Thông báo/hoạt động liên quan tới TNV.
 export const activityLogs: ActivityLog[] = [
   { id: 'lg1', at: '2026-11-06T09:12:00', actor: 'Đaminh Hoàng Văn Tùng', action: 'Mời bạn tham gia nhiệm vụ "Phủ rơm mái hang"', target: 'Phủ rơm mái hang' },
-  { id: 'lg2', at: '2026-11-05T16:40:00', actor: 'Hệ thống', action: 'Ghi nhận 3.5 giờ công', target: 'Chấm công 06/11' },
+  { id: 'lg2', at: '2026-11-05T16:40:00', actor: 'Hệ thống', action: 'Ghi nhận 3.5 giờ đóng góp', target: 'Giờ đóng góp 06/11' },
   { id: 'lg3', at: '2026-11-04T08:05:00', actor: 'Đaminh Hoàng Văn Tùng', action: 'Xác nhận bạn nhận nhiệm vụ "Quấn đèn LED vàng quanh cây"', target: 'Quấn đèn LED vàng quanh cây' },
   { id: 'lg4', at: '2026-11-02T20:30:00', actor: 'Hệ thống', action: 'Bạn được cộng 5 điểm vinh danh', target: 'Điểm vinh danh' },
 ];

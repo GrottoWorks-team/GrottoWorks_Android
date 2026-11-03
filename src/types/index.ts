@@ -1,4 +1,4 @@
-﻿// GrottoWorks domain types — đồng bộ với webapp (grottoworks/src/types/index.ts).
+// GrottoWorks domain types — đồng bộ với webapp (grottoworks/src/types/index.ts).
 // Mobile (volunteer) thêm role VOLUNTEER và VolunteerReg (đăng ký của TNV).
 export type Role = 'ADMIN' | 'COMMITTEE' | 'LEADER' | 'OFFICER' | 'VOLUNTEER';
 
@@ -7,9 +7,33 @@ export interface Community { id: string; name: string; parishId: string }
 
 export interface User {
   id: string; name: string; email: string; role: Role; communityId?: string;
+  parishId?: string;
   locked?: boolean; skills: string[]; points: number; avatarHue: number;
-  /** Lịch rảnh trong tuần (T2…CN). */
-  availability?: Weekday[];
+  phone?: string;
+  introduction?: string;
+  /** Lịch rảnh dạng khoảng thời gian (BE: UTC range, availableTo > availableFrom). */
+  availability?: AvailabilitySlot[];
+}
+
+/** Cộng đoàn trong giáo xứ (`GET /parishes/{id}/communities`). */
+export interface CommunityOption {
+  id: string;
+  name: string;
+}
+
+/** Một khoảng thời gian TNV có thể tham gia (khớp `AvailabilitySlotRequest` của BE). */
+export interface AvailabilitySlot {
+  availableFrom: string;
+  availableTo: string;
+  note?: string;
+}
+
+/** Kỹ năng trong danh mục BE (`GET /api/v1/skills`). */
+export interface Skill {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
 }
 
 export const WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'] as const;
@@ -88,6 +112,34 @@ export interface Donation {
   id: string; materialId?: string; monetary?: number; donorName: string;
   status: 'PLEDGED' | 'RECEIVED_FULL' | 'RECEIVED_PARTIAL' | 'UNUSABLE' | 'CANCELED';
   promisedQty?: number; receivedQty?: number; note?: string;
+}
+
+// ── Đóng góp của tôi (Resource: `GET /users/me/contributions`) ───────────────
+export interface ContributionItem {
+  id: string; materialName: string; unit: string;
+  pledgedQuantity?: number; receivedQuantity: number;
+}
+
+export interface MyContribution {
+  id: string; type: 'MATERIAL' | 'MONEY';
+  /** BE: DonationStatus = PLEDGED | PARTIALLY_RECEIVED | RECEIVED | CANCELLED. */
+  status: 'PLEDGED' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
+  pledgedAmount?: number; receivedAmount?: number;
+  donationDate: string; note?: string; items: ContributionItem[];
+}
+
+/** Nhu cầu còn thiếu của mùa — dùng để gợi ý khi cam kết quyên góp vật tư. */
+export interface ContributionNeed {
+  workAreaId: string; workAreaName: string; materialId: string;
+  materialCode: string; materialName: string; unit: string;
+  required: number; shortage: number; remainingNeed: number;
+}
+
+// ── Thông báo (NotificationAudit: `GET /notifications`) ──────────────────────
+export interface NotificationItem {
+  id: string; eventType: string; title: string; body: string;
+  referenceType?: string; referenceId?: string;
+  isRead: boolean; createdAt: string;
 }
 
 export interface BorrowedItem {

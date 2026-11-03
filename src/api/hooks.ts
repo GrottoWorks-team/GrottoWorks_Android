@@ -1,24 +1,36 @@
-﻿// React Query hooks cho mobile — đồng bộ pattern với webapp (queryKey + invalidate).
+// React Query hooks cho mobile — đồng bộ pattern với webapp (queryKey + invalidate).
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   cancelRegistration,
   checkIn,
   checkOut,
+  getMyRecognition,
   getMyReg,
   getTask,
   listActivity,
   listAreas,
+  listCommunities,
+  listContributionNeeds,
   listMaterials,
+  listMyContributions,
   listMyRegs,
   listMyTasks,
   listMyTimesheets,
+  listNotifications,
   listOpenTasks,
+  listSkills,
+  markAllNotificationsRead,
+  markNotificationRead,
+  offerLoanItem,
+  pledgeMaterial,
+  pledgeMoney,
   registerForTask,
   requestCorrection,
   respondAssignment,
   submitReview,
   updateUser,
 } from '../api';
+import type { PledgeMaterialInput, ProfilePatch } from '../api';
 
 export const keys = {
   tasks: (volunteerId: string) => ['tasks', volunteerId] as const,
@@ -30,12 +42,44 @@ export const keys = {
   activity: ['activity'] as const,
   areas: ['areas'] as const,
   materials: ['materials'] as const,
+  skills: ['skills'] as const,
+  notifications: ['notifications'] as const,
+  recognition: (volunteerId: string) => ['recognition', volunteerId] as const,
+  contributions: (volunteerId: string) => ['contributions', volunteerId] as const,
+  contributionNeeds: ['contributionNeeds'] as const,
+  communities: ['communities'] as const,
 };
+
+export const useCommunities = () =>
+  useQuery({ queryKey: keys.communities, queryFn: listCommunities });
 
 export const useAreas = () => useQuery({ queryKey: keys.areas, queryFn: listAreas });
 
 export const useTaskMaterials = () =>
   useQuery({ queryKey: keys.materials, queryFn: listMaterials });
+
+/** Danh mục kỹ năng BE (kèm id) — dùng cho màn chỉnh sửa hồ sơ. */
+export const useSkills = () => useQuery({ queryKey: keys.skills, queryFn: listSkills });
+
+export const useNotifications = () =>
+  useQuery({ queryKey: keys.notifications, queryFn: listNotifications });
+
+export const useMyRecognition = (volunteerId: string) =>
+  useQuery({
+    queryKey: keys.recognition(volunteerId),
+    queryFn: getMyRecognition,
+    enabled: Boolean(volunteerId),
+  });
+
+export const useMyContributions = (volunteerId: string) =>
+  useQuery({
+    queryKey: keys.contributions(volunteerId),
+    queryFn: listMyContributions,
+    enabled: Boolean(volunteerId),
+  });
+
+export const useContributionNeeds = () =>
+  useQuery({ queryKey: keys.contributionNeeds, queryFn: listContributionNeeds });
 
 export const useMyTasks = (volunteerId: string) =>
   useQuery({
@@ -181,7 +225,69 @@ export function useRequestCorrection(volunteerId: string) {
 export function useUpdateProfile(volunteerId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (patch: Parameters<typeof updateUser>[1]) => updateUser(volunteerId, patch),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: keys.activity }),
+    mutationFn: (patch: ProfilePatch) => updateUser(volunteerId, patch),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: keys.skills });
+      void qc.invalidateQueries({ queryKey: keys.recognition(volunteerId) });
+    },
   });
+}
+
+// ── Thông báo ───────────────────────────────────────────────────────────────
+export function useMarkNotificationRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => markNotificationRead(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: keys.notifications }),
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => markAllNotificationsRead(),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: keys.notifications }),
+  });
+}
+
+// ── Quyên góp / cho mượn ────────────────────────────────────────────────────
+export interface PledgeMaterialArgs {
+  workAreaId: string;
+  items: PledgeMaterialInput[];
+  note?: string;
+}
+
+export function usePledgeMaterial(volunteerId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workAreaId, items, note }: PledgeMaterialArgs) =>
+      pledgeMaterial(workAreaId, items, note),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: keys.contributions(volunteerId) });
+      void qc.invalidateQueries({ queryKey: keys.contributionNeeds });
+      void qc.invalidateQueries({ queryKey: keys.recognition(volunteerId) });
+    },
+  });
+}
+
+export interface PledgeMoneyArgs {
+  amount: number;
+  note?: string;
+  workAreaId?: string;
+}
+
+export function usePledgeMoney(volunteerId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ amount, note, workAreaId }: PledgeMoneyArgs) =>
+      pledgeMoney(amount, note, workAreaId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: keys.contributions(volunteerId) });
+      void qc.invalidateQueries({ queryKey: keys.recognition(volunteerId) });
+    },
+  });
+}
+
+export function useOfferLoan() {
+  return useMutation({ mutationFn: offerLoanItem });
 }
