@@ -27,8 +27,10 @@ import type {
   VolunteerReg,
   WorkArea,
 } from '../types';
-import { http, saveTokens } from './client';
+import { http, saveTokens, ApiError } from './client';
 import type { TokenPair } from './client';
+import { File } from 'expo-file-system';
+import { fetch as expoFetch } from 'expo/fetch';
 
 // ── DTO khớp 1-1 với BE (Identity + ParishCoordination) ─────────────────────
 export interface UserProfileDto {
@@ -353,6 +355,9 @@ export function toTimesheet(dto: AttendanceDto): Timesheet {
     ...(dto.checkOutAt ? { checkOut: hhmm(dto.checkOutAt) } : {}),
     hours: Math.round((dto.approvedMinutes / 60) * 10) / 10,
     status: ATTENDANCE_STATUS[(dto.status ?? '').toUpperCase()] ?? 'CLOSED',
+    checkInAt: dto.checkInAt,
+    ...(dto.checkOutAt ? { checkOutAt: dto.checkOutAt } : {}),
+    version: dto.version,
   };
 }
 
@@ -524,27 +529,27 @@ export async function contributionNeedsReal(seasonId: string): Promise<Contribut
     }));
 }
 
-/** POST /api/v1/material-pledges — cam kết quyên góp vật tư cho 1 khu vực. */
+/** POST /api/v1/donations/material-pledges — cam kết quyên góp vật tư cho 1 khu vực. */
 export async function pledgeMaterialReal(
   workAreaId: string,
   items: { materialId: string; pledgedQuantity: number; note?: string }[],
   note?: string,
 ): Promise<MyContribution> {
-  const dto = await http<DonationDto>('/material-pledges', {
+  const dto = await http<DonationDto>('/donations/material-pledges', {
     method: 'POST',
     body: { workAreaId, items, note: note ?? null },
   });
   return toMyContribution(dto);
 }
 
-/** POST /api/v1/monetary-pledges — cam kết quyên góp tiền. */
+/** POST /api/v1/donations/monetary-pledges — cam kết quyên góp tiền. */
 export async function pledgeMoneyReal(
   seasonId: string,
   amount: number,
   workAreaId?: string,
   note?: string,
 ): Promise<MyContribution> {
-  const dto = await http<DonationDto>('/monetary-pledges', {
+  const dto = await http<DonationDto>('/donations/monetary-pledges', {
     method: 'POST',
     body: { seasonId, workAreaId: workAreaId ?? null, amount, note: note ?? null },
   });
@@ -603,4 +608,130 @@ export async function markNotificationReadReal(notificationId: string): Promise<
 /** POST /api/v1/notifications/read-all. */
 export async function markAllNotificationsReadReal(): Promise<void> {
   await http<unknown>('/notifications/read-all', { method: 'POST' });
+}
+
+// ── Tiến độ + minh chứng (TaskExecution F-TSK-13/14 + file service) ─────────
+export interface ProgressEvidenceDto {
+  fileId: string;
+  caption?: string | null;
+}
+
+export interface TaskProgressDto {
+  id: string;
+  taskId: string;
+  submittedByUserId: string;
+  percentComplete: number;
+  note?: string | null;
+  submittedAt: string;
+  isSubmission: boolean;
+  approvedByUserId?: string | null;
+  approvedAt?: string | null;
+  evidence: ProgressEvidenceDto[];
+}
+
+interface UploadIntentDto {
+  fileId: string;
+  uploadUrl: string;
+  method: string;
+  headers: Record<string, string>;
+  expiresAt: string;
+}
+
+const fileNameOf = (uri: string): string => {
+  const base = uri.split('/').pop() || 'evidence';
+  return base.includes('.') ? base : `${base}.jpg`;
+};
+
+const contentTypeOf = (name: string): string => {
+  const ext = name.split('.').pop()?.toLowerCase();
+  if (ext === 'png') return 'image/png';
+  if (ext === 'heic') return 'image/heic';
+  if (ext === 'webp') return 'image/webp';
+  return 'image/jpeg';
+};
+
+/**
+ * Upload ảnh minh chứng lên NotificationAudit (MinIO presigned, 3 bước giống web):
+ * `POST /files/upload-requests` → `PUT <uploadUrl>` → `POST /files/{id}/complete`.
+ * Trả về `fileId` để gắn vào tiến độ/nghiệm thu.
+ */
+export async function uploadEvidenceFile(uri: string): Promise<string> {
+  const file = new File(uri);
+  const name = fileNameOf(uri);
+  const contentType = contentTypeOf(name);
+  const sizeBytes = file.size ?? 0;
+  if (!sizeBytes) throw new Error('EVIDENCE_UPLOAD_SIZE_UNKNOWN');
+
+  const intent = await http<UploadIntentDto>('/files/upload-requests', {
+    method: 'POST',
+    body: {
+      fileName: name,
+      contentType,
+      sizeBytes,
+      purpose: 'ProgressEvidence',
+      checksum: null,
+    },
+  });
+
+  // Presigned URL nằm trên MinIO (không qua gateway) → dùng expo/fetch để gửi
+  // body nhị phân trực tiếp từ file cục bộ.
+  const res = await expoFetch(intent.uploadUrl, {
+    method: (intent.method || 'PUT') as 'PUT',
+    headers: intent.headers ?? {},
+    body: file,
+  });
+  if (!res.ok) {
+    throw new ApiError(res.status, `EVIDENCE_UPLOAD_FAILED (${res.status})`);
+  }
+
+  await http<unknown>(`/files/${intent.fileId}/complete`, {
+    method: 'POST',
+    body: { checksum: null },
+  });
+  return intent.fileId;
+}
+
+/** GET /api/v1/tasks/{taskId}/progress — lịch sử tiến độ/nghiệm thu. */
+export async function taskProgressReal(taskId: string): Promise<TaskProgressDto[]> {
+  const dtos = await http<TaskProgressDto[]>(`/tasks/${taskId}/progress?size=50`);
+  return dtos;
+}
+
+/**
+ * Nộp hoàn thành: `POST /tasks/{taskId}/submit` (lần đầu) hoặc `/resubmit`
+ * (khi leader yêu cầu sửa). Ảnh minh chứng phải upload trước để lấy `fileId`.
+ */
+export async function submitTaskReviewReal(
+  taskId: string,
+  input: { note: string; photoUris: string[]; resubmit: boolean },
+): Promise<Task> {
+  const evidence: ProgressEvidenceDto[] = [];
+  for (const uri of input.photoUris) {
+    evidence.push({ fileId: await uploadEvidenceFile(uri), caption: null });
+  }
+  const path = input.resubmit ? 'resubmit' : 'submit';
+  const dto = await http<TaskDto>(`/tasks/${taskId}/${path}`, {
+    method: 'POST',
+    body: { note: input.note, evidence, version: null },
+  });
+  return toTask(dto);
+}
+
+/** POST /api/v1/attendance/{attendanceId}/correction-requests — xin sửa giờ công. */
+export async function requestAttendanceCorrectionReal(input: {
+  attendanceId: string;
+  checkInAt: string;
+  checkOutAt: string;
+  reason: string;
+  version: number;
+}): Promise<void> {
+  await http<unknown>(`/attendance/${input.attendanceId}/correction-requests`, {
+    method: 'POST',
+    body: {
+      checkInAt: input.checkInAt,
+      checkOutAt: input.checkOutAt,
+      reason: input.reason,
+      version: input.version,
+    },
+  });
 }

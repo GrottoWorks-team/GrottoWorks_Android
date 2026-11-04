@@ -28,8 +28,11 @@ import {
   pledgeMoneyReal,
   replaceAvailabilityReal,
   replaceSkillsReal,
+  requestAttendanceCorrectionReal,
   skillsReal,
+  submitTaskReviewReal,
   taskDetailReal,
+  taskProgressReal,
   updateProfileReal,
 } from './real';
 import type {
@@ -418,19 +421,27 @@ export async function respondAssignment(
   return task;
 }
 
-// TNV gửi duyệt hoàn thành kèm ≥1 ảnh minh chứng. BE chưa có endpoint nộp
-// minh chứng → chỉ hỗ trợ ở chế độ offline (demo).
+// TNV gửi duyệt hoàn thành kèm ≥1 ảnh minh chứng.
+// Online: upload ảnh → `POST /tasks/{id}/submit` (hoặc `/resubmit` khi leader
+// đã yêu cầu sửa). Offline: ghi vào mock DB.
 export async function submitReview(
   taskId: string,
   note: string,
   photoUris: string[],
 ): Promise<Task> {
-  if (realApi) throw new Error('BE_UNSUPPORTED_SUBMIT_REVIEW');
+  if (photoUris.length === 0) throw new Error('PHOTO_REQUIRED');
+  if (realApi) {
+    const current = await taskDetailReal(taskId);
+    return submitTaskReviewReal(taskId, {
+      note,
+      photoUris,
+      resubmit: current.status === 'REVISE',
+    });
+  }
   await delay(250);
   const db = await loadDb();
   const task = db.tasks.find((t) => t.id === taskId);
   if (!task) throw new Error('NOT_FOUND');
-  if (photoUris.length === 0) throw new Error('PHOTO_REQUIRED');
   task.status = 'REVIEW';
   task.submittedNotes = note;
   task.submittedPhotoUris = photoUris;
@@ -442,6 +453,51 @@ export async function submitReview(
     task.title,
   );
   return task;
+}
+
+export interface TaskProgressEntry {
+  id: string;
+  percent: number;
+  note?: string;
+  submittedAt: string;
+  isSubmission: boolean;
+  evidenceCount: number;
+  approvedAt?: string;
+}
+
+/**
+ * Tiến độ / nghiệm thu của task — BE `GET /tasks/{taskId}/progress`.
+ * Offline lấy từ bản ghi mock của chính TNV.
+ */
+export async function listTaskProgress(taskId: string): Promise<TaskProgressEntry[]> {
+  if (realApi) {
+    const rows = await taskProgressReal(taskId);
+    return rows
+      .map((row) => ({
+        id: row.id,
+        percent: row.percentComplete,
+        ...(row.note ? { note: row.note } : {}),
+        submittedAt: row.submittedAt,
+        isSubmission: row.isSubmission,
+        evidenceCount: row.evidence?.length ?? 0,
+        ...(row.approvedAt ? { approvedAt: row.approvedAt } : {}),
+      }))
+      .sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1));
+  }
+  await delay(120);
+  const db = await loadDb();
+  const task = db.tasks.find((t) => t.id === taskId);
+  if (!task?.submittedNotes && !task?.submittedPhotoUris?.length) return [];
+  return [
+    {
+      id: `${taskId}-mock`,
+      percent: 100,
+      ...(task.submittedNotes ? { note: task.submittedNotes } : {}),
+      submittedAt: new Date().toISOString(),
+      isSubmission: true,
+      evidenceCount: task.submittedPhotoUris?.length ?? 0,
+    },
+  ];
 }
 
 // ── Giờ đóng góp ─────────────────────────────────────────────────────────────
@@ -504,19 +560,31 @@ export async function checkOut(volunteerId: string): Promise<Timesheet> {
   return open;
 }
 
-// Yêu cầu chỉnh giờ: BE đòi giờ vào/ra mới + `version` (màn hình chỉ nhập lý
-// do) → chỉ hỗ trợ ở chế độ offline.
-export async function requestCorrection(id: string, note: string): Promise<Timesheet> {
-  if (realApi) throw new Error('BE_UNSUPPORTED_CORRECTION');
+// Yêu cầu chỉnh giờ công. Online: `POST /attendance/{id}/correction-requests`
+// (BE cần giờ vào/ra đầy đủ + version + lý do). Offline: đánh dấu PENDING_FIX.
+export async function requestCorrection(ts: Timesheet, note: string): Promise<Timesheet> {
+  if (realApi) {
+    if (!ts.checkInAt || !ts.checkOutAt || ts.version == null) {
+      throw new Error('CORRECTION_DETAILS_MISSING');
+    }
+    await requestAttendanceCorrectionReal({
+      attendanceId: ts.id,
+      checkInAt: ts.checkInAt,
+      checkOutAt: ts.checkOutAt,
+      reason: note,
+      version: ts.version,
+    });
+    return { ...ts, status: 'PENDING_FIX', correctionRequest: note };
+  }
   await delay(250);
   const db = await loadDb();
-  const ts = db.timesheets.find((t) => t.id === id);
-  if (!ts) throw new Error('NOT_FOUND');
-  ts.status = 'PENDING_FIX';
-  ts.correctionRequest = note;
+  const stored = db.timesheets.find((t) => t.id === ts.id);
+  if (!stored) throw new Error('NOT_FOUND');
+  stored.status = 'PENDING_FIX';
+  stored.correctionRequest = note;
   await saveDb(db);
-  await logActivity('Bạn', `yêu cầu chỉnh giờ đóng góp "${note}"`, `Giờ đóng góp ${ts.date}`);
-  return ts;
+  await logActivity('Bạn', `yêu cầu chỉnh giờ đóng góp "${note}"`, `Giờ đóng góp ${stored.date}`);
+  return stored;
 }
 
 // ── Thông báo ────────────────────────────────────────────────────────────────
@@ -601,7 +669,7 @@ export interface PledgeMaterialInput {
   note?: string;
 }
 
-/** Cam kết quyên góp vật tư: BE `POST /material-pledges` (chỉ khi online). */
+/** Cam kết quyên góp vật tư: BE `POST /donations/material-pledges` (chỉ khi online). */
 export async function pledgeMaterial(
   workAreaId: string,
   items: PledgeMaterialInput[],
@@ -611,7 +679,7 @@ export async function pledgeMaterial(
   return pledgeMaterialReal(workAreaId, items, note);
 }
 
-/** Cam kết quyên góp tiền: BE `POST /monetary-pledges` (chỉ khi online). */
+/** Cam kết quyên góp tiền: BE `POST /donations/monetary-pledges` (chỉ khi online). */
 export async function pledgeMoney(
   amount: number,
   note?: string,

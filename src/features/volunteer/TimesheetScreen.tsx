@@ -13,7 +13,7 @@ import { Calendar } from '../../components/Calendar';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../auth/AuthContext';
-import { isRealApiActive } from '../../api';
+import { isRealApiActive, ApiError } from '../../api';
 import {
   useCheckIn,
   useCheckOut,
@@ -91,10 +91,14 @@ export function TimesheetScreen() {
   const onCorrection = async () => {
     if (!fixing) return;
     if (!note.trim()) return setNoteError(true);
-    await correction.mutateAsync({ id: fixing.id, note: note.trim() });
-    setFixing(null);
-    setNote('');
-    toast(t('timesheets.correctionSent'));
+    try {
+      await correction.mutateAsync({ timesheet: fixing, note: note.trim() });
+      setFixing(null);
+      setNote('');
+      toast(t('timesheets.correctionSent'));
+    } catch (error) {
+      toast(error instanceof ApiError ? error.message : t('common.error'), 'alert');
+    }
   };
 
   return (
@@ -170,7 +174,7 @@ export function TimesheetScreen() {
                       {ts.checkOut ? ` · ${t('timesheets.checkOut')}: ${ts.checkOut}` : ''}
                     </AppText>
                     <StatusTag status={ts.status} />
-                    {ts.status === 'CLOSED' && !realMode ? (
+                    {ts.status === 'CLOSED' ? (
                       <Button
                         size="sm"
                         variant="outline"

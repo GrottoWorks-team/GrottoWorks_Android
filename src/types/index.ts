@@ -155,6 +155,10 @@ export interface Allocation {
 export interface Timesheet {
   id: string; volunteerId: string; date: string; checkIn: string; checkOut?: string;
   hours: number; correctionRequest?: string; status: 'OPEN' | 'CLOSED' | 'PENDING_FIX';
+  /** ISO đầy đủ của phiên (BE `/users/me/attendance`) — cần khi xin sửa giờ. */
+  checkInAt?: string; checkOutAt?: string;
+  /** `version` của bản ghi chấm công — BE đòi khi tạo yêu cầu chỉnh giờ. */
+  version?: number;
 }
 
 export interface SupportRequest {

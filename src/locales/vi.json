@@ -85,7 +85,7 @@
   "tasks.filter.done": "Xong",
   "tasks.submitReview": "Gửi duyệt hoàn thành",
   "tasks.bePendingTitle": "Chờ BE bổ sung",
-  "tasks.bePending": "BE chưa trả mã phân công cho TNV nên chưa phản hồi/nộp minh chứng được trên app. Vui lòng dùng bản web.",
+  "tasks.bePending": "BE chưa trả mã phân công cho TNV nên chưa nhận/từ chối phân công được trên app. Vui lòng dùng bản web.",
   "tasks.reviewTitle": "Gửi duyệt hoàn thành",
   "tasks.reviewNote": "Ghi chú nộp duyệt",
   "tasks.noteRequired": "Vui lòng nhập ghi chú",
@@ -309,5 +309,10 @@
   "status.UNUSABLE": "Không dùng được",
   "status.CANCELED": "Đã huỷ",
   "status.CANCELLED": "Đã huỷ",
-  "status.CORRECTED": "Đã hiệu chỉnh"
+  "status.CORRECTED": "Đã hiệu chỉnh",
+  "tasks.progressTitle": "Tiến độ & minh chứng",
+  "tasks.progressItem": "Hoàn thành {{percent}}% · {{photos}} ảnh minh chứng",
+  "tasks.progressApproved": "Trưởng khu đã duyệt",
+  "errors.EVIDENCE_UPLOAD_SIZE_UNKNOWN": "Không đọc được dung lượng ảnh, vui lòng chọn ảnh khác.",
+  "errors.CORRECTION_DETAILS_MISSING": "Phiên chấm công thiếu giờ vào/ra — không thể gửi yêu cầu chỉnh giờ."
 }

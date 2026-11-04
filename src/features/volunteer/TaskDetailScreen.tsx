@@ -13,15 +13,15 @@ import { PhotoGallery, PhotoPicker } from '../../components/PhotoPicker';
 import { StatusTag } from '../../components/StatusTag';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../auth/AuthContext';
-import { isRealApiActive } from '../../api';
+import { isRealApiActive, myAssignmentStatus, ApiError } from '../../api';
 import {
   useAreas,
   useRespondAssignment,
   useSubmitReview,
   useTask,
   useTaskMaterials,
+  useTaskProgress,
 } from '../../api/hooks';
-import { assignmentStatus } from '../../types';
 import { colors, radius, spacing } from '../../theme/tokens';
 import type { TasksStackParamList } from '../../navigation/types';
 
@@ -39,7 +39,10 @@ export function TaskDetailScreen() {
   const { data: materials = [] } = useTaskMaterials();
   const respond = useRespondAssignment(volunteerId);
   const submitReview = useSubmitReview(volunteerId, params.taskId);
-  // BE chưa trả mã phân công cho TNV nên chưa phản hồi/nộp minh chứng được.
+  const { data: progress = [] } = useTaskProgress(params.taskId);
+  // BE không trả assignment trong TaskDto nhưng `/users/me/tasks` chỉ chứa task
+  // TNV đã được phân công → ở chế độ thật coi trạng thái là ACCEPTED.
+  // (Màn "task đang tuyển" dùng OpenTaskDetailScreen, không đi qua đây.)
   const realMode = isRealApiActive();
 
   const [declining, setDeclining] = useState(false);
@@ -73,7 +76,7 @@ export function TaskDetailScreen() {
   }
 
   const area = areas.find((a) => a.id === task.areaId);
-  const myStatus = assignmentStatus(task, volunteerId);
+  const myStatus = myAssignmentStatus(task, volunteerId);
   const taskMaterials = materials.filter((m) => task.materialIds.includes(m.id));
 
   const onAccept = async () => {
@@ -92,11 +95,16 @@ export function TaskDetailScreen() {
   const onSubmitReview = async () => {
     if (!note.trim()) return setNoteError(true);
     if (photos.length === 0) return setPhotoError(true);
-    await submitReview.mutateAsync({ note: note.trim(), photoUris: photos });
-    setReviewing(false);
-    setNote('');
-    setPhotos([]);
-    toast(t('tasks.reviewSubmitted', { name: task.title }));
+    try {
+      await submitReview.mutateAsync({ note: note.trim(), photoUris: photos });
+      setReviewing(false);
+      setNote('');
+      setPhotos([]);
+      toast(t('tasks.reviewSubmitted', { name: task.title }));
+    } catch (error) {
+      // Lỗi BE (ảnh quá lớn, sai trạng thái task, mất mạng…) → báo rõ thay vì im lặng.
+      toast(error instanceof ApiError ? error.message : t('common.error'), 'alert');
+    }
   };
 
   const openReview = () => {
@@ -190,7 +198,6 @@ export function TaskDetailScreen() {
             </View>
           </Card>
         )}
-
         {canSubmitReview && (
           <Button
             label={t('tasks.submitReview')}
@@ -199,12 +206,35 @@ export function TaskDetailScreen() {
           />
         )}
 
-        {/* BE chưa trả assignmentId → chưa phản hồi phân công / nộp minh chứng
-            được trên mobile. Hiện ghi chú thay vì giả lập thành công. */}
+        {/* BE chưa trả assignmentId → chỉ nhận/từ chối phân công là chưa làm được
+            trên app; ghi chú rõ thay vì giả lập thành công. */}
         {realMode && !myStatus && task.status !== 'DONE' ? (
           <Card style={styles.card}>
             <AppText variant="label">{t('tasks.bePendingTitle')}</AppText>
             <AppText variant="sub">{t('tasks.bePending')}</AppText>
+          </Card>
+        ) : null}
+
+        {/* Lịch sử tiến độ / nghiệm thu (BE `GET /tasks/{id}/progress`). */}
+        {progress.length > 0 ? (
+          <Card style={styles.card}>
+            <AppText variant="label">{t('tasks.progressTitle')}</AppText>
+            {progress.map((entry) => (
+              <View key={entry.id} style={styles.progressRow}>
+                <AppText variant="sub">
+                  {t('tasks.progressItem', {
+                    percent: entry.percent,
+                    photos: entry.evidenceCount,
+                  })}
+                </AppText>
+                {entry.note ? <AppText variant="sub">{entry.note}</AppText> : null}
+                {entry.approvedAt ? (
+                  <AppText variant="sub" color={colors.pine}>
+                    {t('tasks.progressApproved')}
+                  </AppText>
+                ) : null}
+              </View>
+            ))}
           </Card>
         ) : null}
 
@@ -348,6 +378,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   flex1: { flex: 1 },
   statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  progressRow: { gap: 2, paddingVertical: 2 },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(43,45,66,0.5)',

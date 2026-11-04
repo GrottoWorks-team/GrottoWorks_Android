@@ -19,6 +19,7 @@ import {
   listNotifications,
   listOpenTasks,
   listSkills,
+  listTaskProgress,
   markAllNotificationsRead,
   markNotificationRead,
   offerLoanItem,
@@ -31,6 +32,7 @@ import {
   updateUser,
 } from '../api';
 import type { PledgeMaterialInput, ProfilePatch } from '../api';
+import type { Timesheet } from '../types';
 
 export const keys = {
   tasks: (volunteerId: string) => ['tasks', volunteerId] as const,
@@ -97,6 +99,14 @@ export const useOpenTasks = (volunteerId: string) =>
 
 export const useTask = (id: string) =>
   useQuery({ queryKey: keys.task(id), queryFn: () => getTask(id), enabled: Boolean(id) });
+
+/** Lịch sử tiến độ/nghiệm thu của task (BE `GET /tasks/{id}/progress`). */
+export const useTaskProgress = (id: string) =>
+  useQuery({
+    queryKey: [...keys.task(id), 'progress'] as const,
+    queryFn: () => listTaskProgress(id),
+    enabled: Boolean(id),
+  });
 
 export const useMyRegs = (volunteerId: string) =>
   useQuery({
@@ -214,7 +224,8 @@ export function useCheckOut(volunteerId: string) {
 export function useRequestCorrection(volunteerId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, note }: { id: string; note: string }) => requestCorrection(id, note),
+    mutationFn: ({ timesheet, note }: { timesheet: Timesheet; note: string }) =>
+      requestCorrection(timesheet, note),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: keys.timesheets(volunteerId) });
       void qc.invalidateQueries({ queryKey: keys.activity });

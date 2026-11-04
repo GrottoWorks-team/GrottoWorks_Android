@@ -85,7 +85,7 @@
   "tasks.filter.done": "Done",
   "tasks.submitReview": "Submit for review",
   "tasks.bePendingTitle": "Waiting on backend",
-  "tasks.bePending": "The backend does not expose your assignment id yet, so accepting/declining and submitting evidence are unavailable in the app. Please use the web app.",
+  "tasks.bePending": "The backend does not expose your assignment id yet, so accepting/declining an assignment is unavailable in the app. Please use the web app.",
   "tasks.reviewTitle": "Submit for completion review",
   "tasks.reviewNote": "Review note",
   "tasks.noteRequired": "Please enter a note",
@@ -309,5 +309,10 @@
   "status.UNUSABLE": "Unusable",
   "status.CANCELED": "Canceled",
   "status.CANCELLED": "Cancelled",
-  "status.CORRECTED": "Corrected"
+  "status.CORRECTED": "Corrected",
+  "tasks.progressTitle": "Progress & evidence",
+  "tasks.progressItem": "{{percent}}% complete · {{photos}} evidence photos",
+  "tasks.progressApproved": "Approved by the area leader",
+  "errors.EVIDENCE_UPLOAD_SIZE_UNKNOWN": "Could not read the photo size, please pick another photo.",
+  "errors.CORRECTION_DETAILS_MISSING": "This attendance session is missing check-in/out times — cannot request a correction."
 }
