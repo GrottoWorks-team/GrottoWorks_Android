@@ -1,13 +1,14 @@
 // Snowfall — lớp phủ tuyết rơi cho màn Login (Golden Winter).
 // Tạo N hạt tuyết với vị trí/kích thước/tốc độ ngẫu nhiên (memoized một lần
-// để không đổi giữa các re-render), rồi animate bằng Animated (native driver)
-// nên chạy mượt và không tốn JS mỗi frame. Tương đương bản CSS của webapp.
-import { useEffect, useMemo } from 'react';
+// để không đổi giữa các re-render), rồi animate bằng Animated (native driver
+// trên mobile, JS driver trên web) nên chạy mượt và không tốn JS mỗi frame.
+// Tương đương bản CSS của webapp.
+import { useEffect, useMemo, useState } from 'react';
 import {
   Animated,
   Easing,
+  Platform,
   StyleSheet,
-  useAnimatedValue,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -35,7 +36,7 @@ function seededRandom(seed: number) {
 }
 
 function SnowflakeView({ flake, height }: { flake: Snowflake; height: number }) {
-  const progress = useAnimatedValue(0);
+  const [progress] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -45,7 +46,7 @@ function SnowflakeView({ flake, height }: { flake: Snowflake; height: number }) 
           toValue: 1,
           duration: flake.duration,
           easing: Easing.linear,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ]),
     );

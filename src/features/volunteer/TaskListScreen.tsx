@@ -1,7 +1,7 @@
 // Tab Nhiệm vụ: 2 sub-tab "Việc của tôi" (task được phân công) và "Đang tuyển"
 // (task mở đăng ký). Gộp chung để tránh tách thành tab riêng.
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -13,7 +13,8 @@ import { EmptyState } from '../../components/EmptyState';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useAuth } from '../../auth/AuthContext';
 import { isRealApiActive, myAssignmentStatus } from '../../api';
-import { useAreas, useMyTasks, useOpenTasks } from '../../api/hooks';
+import { useAreas, useMyAttendanceRequests, useMyTasks, useMyTimesheets, useOpenTasks } from '../../api/hooks';
+import { useRefreshControl } from '../../lib/useRefreshControl';
 import { skillMatchScore } from '../../types';
 import type { Task } from '../../types';
 import { colors, radius, spacing } from '../../theme/tokens';
@@ -32,11 +33,42 @@ export function TaskListScreen() {
 
   const [filter, setFilter] = useState<Filter>('all');
 
-  const { data: tasks = [], isPending } = useMyTasks(volunteerId);
-  const { data: openTasks = [], isPending: openPending } = useOpenTasks(volunteerId);
-  const { data: areas = [] } = useAreas();
+  const tasksQuery = useMyTasks(volunteerId);
+  const { data: tasks = [], isPending } = tasksQuery;
+  const openQuery = useOpenTasks(volunteerId);
+  const { data: openTasks = [], isPending: openPending } = openQuery;
+  const areasQuery = useAreas();
+  const { data: areas = [] } = areasQuery;
+  // Trạng thái "việc của tôi": đơn vào ca đang chờ duyệt / phiên đang mở.
+  const requestsQuery = useMyAttendanceRequests(volunteerId);
+  const { data: attendanceRequests = [] } = requestsQuery;
+  const timesheetsQuery = useMyTimesheets(volunteerId);
+  const { data: timesheets = [] } = timesheetsQuery;
+  const openSessionAssignmentId = timesheets.find((ts) => ts.status === 'OPEN')?.assignmentId;
+  const pendingAssignmentIds = new Set(attendanceRequests.map((row) => row.assignmentId));
+
+  // Kéo xuống để làm mới: trạng thái việc đổi ở web (leader phát hành/duyệt
+  // check-in) nên TNV cần tự reload thay vì chờ cache 30s.
+  const refresh = useRefreshControl([
+    tasksQuery.refetch,
+    openQuery.refetch,
+    areasQuery.refetch,
+    requestsQuery.refetch,
+    timesheetsQuery.refetch,
+  ]);
 
   const areaName = (id: string) => areas.find((a) => a.id === id)?.name ?? '—';
+
+  // Việc này TNV đang trong ca, hay đơn vào ca đang chờ trưởng khu duyệt?
+  const sessionState = (task: Task): 'OPEN' | 'PENDING' | undefined => {
+    const assignmentId = task.assignments?.find(
+      (row) => row.volunteerId === volunteerId,
+    )?.assignmentId;
+    if (!assignmentId) return undefined;
+    if (openSessionAssignmentId === assignmentId) return 'OPEN';
+    if (pendingAssignmentIds.has(assignmentId)) return 'PENDING';
+    return undefined;
+  };
 
   const filtered = useMemo(() => {
     return tasks.filter((task) => {
@@ -54,8 +86,7 @@ export function TaskListScreen() {
   }, [openTasks, user]);
 
   // BE chưa trả trạng thái phân công → ẩn bộ lọc "Chờ duyệt" khi dùng dữ liệu thật.
-  const realMode = isRealApiActive();
-  const FILTERS: { key: Filter; label: string }[] = [
+  const realMode = isRealApiActive();  const FILTERS: { key: Filter; label: string }[] = [
     { key: 'all', label: t('tasks.filter.all') },
     ...(realMode ? [] : [{ key: 'pending' as Filter, label: t('tasks.filter.pending') }]),
     { key: 'doing', label: t('tasks.filter.doing') },
@@ -110,6 +141,7 @@ export function TaskListScreen() {
             data={filtered}
             keyExtractor={(task) => task.id}
             contentContainerStyle={styles.list}
+            refreshControl={<RefreshControl {...refresh} />}
             ListEmptyComponent={
               <EmptyState text={isPending ? t('common.loading') : t('home.noTasks')} />
             }
@@ -118,6 +150,7 @@ export function TaskListScreen() {
                 task={item}
                 area={areaName(item.areaId)}
                 status={myAssignmentStatus(item, volunteerId)}
+                session={sessionState(item)}
                 onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
               />
             )}
@@ -128,6 +161,7 @@ export function TaskListScreen() {
           data={sortedOpen}
           keyExtractor={(task) => task.id}
           contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl {...refresh} />}
           ListEmptyComponent={
             <EmptyState text={openPending ? t('common.loading') : t('open.empty')} />
           }
@@ -176,14 +210,17 @@ function TaskRow({
   task,
   area,
   status,
+  session,
   onPress,
 }: {
   task: Task;
   area: string;
   status?: 'PENDING' | 'ACCEPTED' | 'DECLINED';
+  session?: 'OPEN' | 'PENDING';
   onPress: () => void;
 }) {
   const { t } = useTranslation();
+  const inSession = session === 'OPEN';
   return (
     <Pressable onPress={onPress}>
       <Card style={styles.row}>
@@ -196,6 +233,14 @@ function TaskRow({
         <AppText variant="sub" numberOfLines={1}>
           {area} · {t('tasks.dueDate')}: {task.dueDate}
         </AppText>
+        {/* Trạng thái thực tế của TNV: đang trong ca / đơn vào ca chờ duyệt. */}
+        {session ? (
+          <View style={inSession ? styles.sessionOpen : styles.sessionPending}>
+            <AppText variant="sub" color={inSession ? colors.passedFg : colors.pendingFg}>
+              {inSession ? t('tasks.sessionOpen') : t('tasks.sessionPending')}
+            </AppText>
+          </View>
+        ) : null}
         {status === 'PENDING' ? <StatusTag status="PENDING" /> : null}
         {status === 'DECLINED' ? <StatusTag status="DECLINED" /> : null}
       </Card>
@@ -300,6 +345,20 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13 },
   list: { padding: spacing.lg, gap: spacing.md },
   row: { gap: spacing.sm },
+  sessionOpen: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.passedBg,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 3,
+  },
+  sessionPending: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.pendingBg,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 3,
+  },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   flex1: { flex: 1 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, alignItems: 'center' },

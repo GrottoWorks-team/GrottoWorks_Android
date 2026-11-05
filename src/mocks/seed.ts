@@ -19,7 +19,7 @@ const S = {
   van: ['Vận chuyển'], log: ['Logistics'], son: ['Sơn'],
 };
 
-// Tài khoản demo TNV dùng để đăng nhập app mobile. Mật khẩu chung: grotto123.
+// Tài khoản demo TNV dùng để đăng nhập app mobile. Mật khẩu chung: GxThanhTam@2026.
 const slot = (from: string, to: string, note?: string) => ({
   availableFrom: from,
   availableTo: to,

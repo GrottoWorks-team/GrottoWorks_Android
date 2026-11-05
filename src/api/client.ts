@@ -1,23 +1,44 @@
 // HTTP client cho mobile — thay dần tầng mock bằng BE thật.
 //
-// Base URL: ưu tiên biến môi trường Expo `EXPO_PUBLIC_API_URL`; mặc định trỏ
-// thẳng vào API Gateway (YARP) cổng 6102. Android emulator không thấy
-// `localhost` của máy host nên mặc định dùng `10.0.2.2`:
+// Base URL: ưu tiên biến môi trường Expo `EXPO_PUBLIC_API_URL`; nếu không có thì
+// trỏ vào API Gateway (YARP) cổng 6102 của máy dev — web dùng `localhost`, còn
+// native (Expo Go/emulator) dùng IP LAN của Metro để điện thoại gọi được Gateway:
 //
 //   EXPO_PUBLIC_API_URL=http://192.168.1.10:6102/api/v1 npx expo start
 //
 // Token: access/refresh lưu ở AsyncStorage, gắn `Bearer` cho mọi request.
 // Gặp 401 → tự gọi `/auth/refresh` rồi thử lại MỘT lần (giống webapp).
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const FALLBACK_HOST = Platform.select({
-  android: 'http://10.0.2.2:6102',
-  default: 'http://localhost:6102',
-});
+/** Cổng Gateway (YARP) khi chạy `docker compose up` ở máy dev. */
+const GATEWAY_PORT = 6102;
+
+/**
+ * Host của Metro dev server (vd `192.168.1.10:8081`). Trên máy thật/emulator
+ * `localhost` là chính thiết bị nên phải dùng IP LAN của máy đang chạy Metro
+ * thì app mới gọi được Gateway.
+ */
+function devServerHost(): string | null {
+  const host = Constants.expoConfig?.hostUri?.split('/')[0]?.split(':')[0];
+  // Metro chạy ở chế độ localhost thì host này vô dụng với điện thoại.
+  if (!host || host === 'localhost' || host === '127.0.0.1') return null;
+  return host;
+}
+
+function defaultHost(): string {
+  // Web: trình duyệt chạy cùng máy dev → localhost là đúng.
+  if (Platform.OS === 'web') return `http://localhost:${GATEWAY_PORT}`;
+  const host = devServerHost();
+  if (host) return `http://${host}:${GATEWAY_PORT}`;
+  return Platform.OS === 'android'
+    ? `http://10.0.2.2:${GATEWAY_PORT}` // Android emulator → localhost của máy host
+    : `http://localhost:${GATEWAY_PORT}`;
+}
 
 export const API_BASE = (
-  process.env.EXPO_PUBLIC_API_URL ?? `${FALLBACK_HOST}/api/v1`
+  process.env.EXPO_PUBLIC_API_URL ?? `${defaultHost()}/api/v1`
 ).replace(/\/+$/, '');
 
 const TOKEN_KEY = 'grotto-mobile-tokens-v1';
@@ -79,6 +100,8 @@ export interface HttpOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
   /** Bỏ Bearer (dùng cho /auth/login, /auth/refresh). */
+  /** Header bổ sung — BE đòi `Idempotency-Key` (check-in/out) và `If-Match` (version). */
+  headers?: Record<string, string>;
   anonymous?: boolean;
   timeoutMs?: number;
   /** @internal chỉ dùng để chặn vòng lặp refresh vô hạn. */
@@ -86,10 +109,17 @@ export interface HttpOptions {
 }
 
 export async function http<T>(path: string, options: HttpOptions = {}): Promise<T> {
-  const { method = 'GET', body, anonymous = false, timeoutMs = 15000, noRetry = false } = options;
+  const {
+    method = 'GET',
+    body,
+    headers: extraHeaders,
+    anonymous = false,
+    timeoutMs = 15000,
+    noRetry = false,
+  } = options;
 
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const headers: Record<string, string> = { Accept: 'application/json', ...extraHeaders };
+  if (body !== undefined) headers['Content-Type'] = 'application/json; charset=utf-8';
   if (!anonymous) {
     const current = await loadTokens();
     if (current?.accessToken) headers.Authorization = `Bearer ${current.accessToken}`;

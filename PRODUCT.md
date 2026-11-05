@@ -54,7 +54,8 @@ Confirmed (implemented across 5 tabs):
 
 Domain rules:
 - Two distinct, non-interchangeable concepts: `VolunteerReg` (`PENDING` → `APPROVED` / `REJECTED`) is the **volunteer-initiated application**; `TaskAssignment` (`PENDING` / `ACCEPTED` / `DECLINED`) is the **leader-initiated invite**. `assignees` is legacy data meaning ACCEPTED, overlaid by `assignments`.
-- A task is open for registration only while its status is neither `DONE` nor `REVIEW` and accepted assignees < volunteers needed.
+- A task accepts applications **only while its status is `OPEN`** (the recruitment window). `POST /tasks/{id}/ready` ("Phát hành việc") closes recruitment and moves the task to `NOT_STARTED`, after which applications/edits are rejected (`TASK_INVALID_STATE`). `OPEN` is *not* a draft state.
+- An invite can be accepted/declined by the invited volunteer only: `GET /users/me/assignments` provides the `assignmentId` + `version` used by `POST /task-assignments/{id}/accept|decline` (decline requires a reason).
 - Submitting for review requires at least one evidence photo.
 
 Non-functional (inherited from the shared product): summaries load quickly; plain Vietnamese labels and large touch targets for low-digital-literacy users; documents/photos linked to the correct task.

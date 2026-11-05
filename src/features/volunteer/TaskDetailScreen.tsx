@@ -1,7 +1,7 @@
 // Chi tiết nhiệm vụ (TNV): info + tiêu chí hoàn thành + kỹ năng + vật tư,
 // và hành động theo trạng thái phân công của chính TNV (nhận/từ chối/gửi duyệt).
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -16,12 +16,18 @@ import { useAuth } from '../../auth/AuthContext';
 import { isRealApiActive, myAssignmentStatus, ApiError } from '../../api';
 import {
   useAreas,
+  useCancelAttendanceRequest,
+  useCheckIn,
+  useCheckOut,
+  useMyAttendanceRequests,
+  useMyTimesheets,
   useRespondAssignment,
   useSubmitReview,
   useTask,
   useTaskMaterials,
   useTaskProgress,
 } from '../../api/hooks';
+import { useRefreshControl } from '../../lib/useRefreshControl';
 import { colors, radius, spacing } from '../../theme/tokens';
 import type { TasksStackParamList } from '../../navigation/types';
 
@@ -34,12 +40,27 @@ export function TaskDetailScreen() {
   const { params } = useRoute<DetailRoute>();
   const volunteerId = user?.id ?? '';
 
-  const { data: task, isPending, isError } = useTask(params.taskId);
-  const { data: areas = [] } = useAreas();
+  const taskQuery = useTask(params.taskId);
+  const { data: task, isPending, isError } = taskQuery;
+  const areasQuery = useAreas();
+  const { data: areas = [] } = areasQuery;
   const { data: materials = [] } = useTaskMaterials();
+  const timesheetsQuery = useMyTimesheets(volunteerId);
+  const { data: timesheets = [] } = timesheetsQuery;
+  const requestsQuery = useMyAttendanceRequests(volunteerId);
+  const { data: attendanceRequests = [] } = requestsQuery;
   const respond = useRespondAssignment(volunteerId);
   const submitReview = useSubmitReview(volunteerId, params.taskId);
+  const checkIn = useCheckIn(volunteerId);
+  const checkOut = useCheckOut(volunteerId);
+  const cancelRequest = useCancelAttendanceRequest(volunteerId);
   const { data: progress = [] } = useTaskProgress(params.taskId);
+  const refresh = useRefreshControl([
+    taskQuery.refetch,
+    areasQuery.refetch,
+    timesheetsQuery.refetch,
+    requestsQuery.refetch,
+  ]);
   // BE không trả assignment trong TaskDto nhưng `/users/me/tasks` chỉ chứa task
   // TNV đã được phân công → ở chế độ thật coi trạng thái là ACCEPTED.
   // (Màn "task đang tuyển" dùng OpenTaskDetailScreen, không đi qua đây.)
@@ -53,6 +74,7 @@ export function TaskDetailScreen() {
   const [noteError, setNoteError] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoError, setPhotoError] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (isPending) {
     return (
@@ -80,21 +102,30 @@ export function TaskDetailScreen() {
   const taskMaterials = materials.filter((m) => task.materialIds.includes(m.id));
 
   const onAccept = async () => {
-    await respond.mutateAsync({ taskId: task.id, status: 'ACCEPTED' });
-    toast(t('tasks.accepted', { name: task.title }));
+    try {
+      await respond.mutateAsync({ taskId: task.id, status: 'ACCEPTED' });
+      toast(t('tasks.accepted', { name: task.title }));
+    } catch (error) {
+      toast(error instanceof ApiError ? error.message : t('common.error'), 'alert');
+    }
   };
 
   const onDecline = async () => {
     if (!reason.trim()) return setReasonError(true);
-    await respond.mutateAsync({ taskId: task.id, status: 'DECLINED', note: reason.trim() });
-    setDeclining(false);
-    setReason('');
-    toast(t('tasks.declined', { name: task.title }));
+    try {
+      await respond.mutateAsync({ taskId: task.id, status: 'DECLINED', note: reason.trim() });
+      setDeclining(false);
+      setReason('');
+      toast(t('tasks.declined', { name: task.title }));
+    } catch (error) {
+      toast(error instanceof ApiError ? error.message : t('common.error'), 'alert');
+    }
   };
 
   const onSubmitReview = async () => {
     if (!note.trim()) return setNoteError(true);
     if (photos.length === 0) return setPhotoError(true);
+    setSubmitError(null);
     try {
       await submitReview.mutateAsync({ note: note.trim(), photoUris: photos });
       setReviewing(false);
@@ -102,15 +133,73 @@ export function TaskDetailScreen() {
       setPhotos([]);
       toast(t('tasks.reviewSubmitted', { name: task.title }));
     } catch (error) {
-      // Lỗi BE (ảnh quá lớn, sai trạng thái task, mất mạng…) → báo rõ thay vì im lặng.
-      toast(error instanceof ApiError ? error.message : t('common.error'), 'alert');
+      // Không im lặng: hiện lỗi ngay trong modal (toast có thể bị modal che).
+      const raw = error instanceof ApiError ? error.message : '';
+      const friendly =
+        (error instanceof ApiError && error.status === 0) ||
+        /EVIDENCE_UPLOAD|UPLOAD_SIZE/i.test(raw)
+          ? t('tasks.evidenceUploadFailed')
+          : raw || t('common.error');
+      setSubmitError(friendly);
+      toast(friendly, 'alert');
     }
   };
 
   const openReview = () => {
     setNoteError(false);
     setPhotoError(false);
+    setSubmitError(null);
     setReviewing(true);
+  };
+
+  // Vào ca: BE tạo đơn PENDING chờ trưởng khu duyệt (việc chỉ IN_PROGRESS sau khi duyệt).
+  const openSession = timesheets.find((ts) => ts.status === 'OPEN');
+  const myAssignmentId = task.assignments?.find((row) => row.volunteerId === volunteerId)?.assignmentId;
+  const pendingRequest = attendanceRequests.find(
+    (row) => row.assignmentId === myAssignmentId,
+  );
+  const canStartWork =
+    myStatus === 'ACCEPTED' &&
+    (task.backendStatus === 'NOT_STARTED' || task.backendStatus === 'IN_PROGRESS');
+
+  const onCancelRequest = async () => {
+    if (!pendingRequest) return;
+    try {
+      await cancelRequest.mutateAsync({
+        requestId: pendingRequest.id,
+        version: pendingRequest.version,
+      });
+      toast(t('tasks.checkInCancelled'));
+    } catch (error) {
+      toast(error instanceof ApiError ? error.message : t('common.error'), 'alert');
+    }
+  };
+
+  const onCheckIn = async () => {
+    try {
+      const result = await checkIn.mutateAsync({ taskId: task.id });
+      toast(
+        result.pendingApproval
+          ? t('tasks.checkInPending')
+          : t('timesheets.checkedIn', { time: result.timesheet?.checkIn ?? '' }),
+      );
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        // 409 ATTENDANCE_ALREADY_OPEN = đã có đơn chờ duyệt hoặc phiên đang mở.
+        toast(t('tasks.checkInAlready'), 'alert');
+        return;
+      }
+      toast(error instanceof ApiError ? error.message : t('common.error'), 'alert');
+    }
+  };
+
+  const onCheckOut = async () => {
+    try {
+      const result = await checkOut.mutateAsync();
+      toast(t('timesheets.checkedOut', { time: result.timesheet?.checkOut ?? '' }));
+    } catch (error) {
+      toast(error instanceof ApiError ? error.message : t('common.error'), 'alert');
+    }
   };
 
   const canSubmitReview =
@@ -118,7 +207,10 @@ export function TaskDetailScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        refreshControl={<RefreshControl {...refresh} />}
+      >
         <View style={styles.titleBlock}>
           <AppText variant="h1">{task.title}</AppText>
           <StatusTag status={task.status} />
@@ -132,6 +224,10 @@ export function TaskDetailScreen() {
           <Field label={t('tasks.area')} value={area?.name ?? '—'} />
           <Field label={t('tasks.estimateHours')} value={`${task.estimateHours} ${t('tasks.hours')}`} />
           <Field label={t('tasks.volunteersNeeded')} value={String(task.volunteersNeeded)} />
+          <Field
+            label={t('tasks.startAt')}
+            value={task.startAt ? task.startAt.slice(0, 10) : t('tasks.startAtNone')}
+          />
           <Field label={t('tasks.dueDate')} value={task.dueDate} />
         </Card>
 
@@ -196,6 +292,41 @@ export function TaskDetailScreen() {
                 style={styles.flex1}
               />
             </View>
+          </Card>
+        )}
+        {canStartWork && (
+          <Card style={styles.card}>
+            <AppText variant="label">{t('tasks.workTitle')}</AppText>
+            <AppText variant="sub">
+              {openSession
+                ? t('tasks.workSessionOpen')
+                : pendingRequest
+                  ? t('tasks.workPendingApproval')
+                  : task.backendStatus === 'IN_PROGRESS'
+                    ? t('tasks.workInProgress')
+                    : t('tasks.workNotStarted')}
+            </AppText>
+            {openSession ? (
+              <Button
+                label={t('timesheets.checkOutAction')}
+                variant="danger"
+                onPress={onCheckOut}
+                loading={checkOut.isPending}
+              />
+            ) : pendingRequest ? (
+              <Button
+                label={t('tasks.cancelCheckIn')}
+                variant="outline"
+                onPress={onCancelRequest}
+                loading={cancelRequest.isPending}
+              />
+            ) : (
+              <Button
+                label={t('tasks.startWork')}
+                onPress={onCheckIn}
+                loading={checkIn.isPending}
+              />
+            )}
           </Card>
         )}
         {canSubmitReview && (
@@ -327,6 +458,9 @@ export function TaskDetailScreen() {
                 }}
                 error={photoError}
               />
+              {submitError ? (
+                <AppText style={styles.errorText}>{submitError}</AppText>
+              ) : null}
             </ScrollView>
             <View style={styles.actions}>
               <Button

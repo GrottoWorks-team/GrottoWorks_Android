@@ -10,6 +10,7 @@ import { ApiError } from './client';
 import {
   activeSeasonReal,
   applyForTaskReal,
+  cancelAttendanceRequestReal,
   communitiesReal,
   contributionNeedsReal,
   currentUser,
@@ -18,17 +19,22 @@ import {
   markAllNotificationsReadReal,
   markNotificationReadReal,
   myAttendanceReal,
+  myAttendanceRequestsReal,
   myContributionsReal,
   myRecognitionReal,
   myTasksReal,
   notificationsReal,
   offerLoanReal,
+  openSessionReal,
   openTasksReal,
+  requestCheckInReal,
+  requestCheckOutReal,
   pledgeMaterialReal,
   pledgeMoneyReal,
   replaceAvailabilityReal,
   replaceSkillsReal,
   requestAttendanceCorrectionReal,
+  respondAssignmentReal,
   skillsReal,
   submitTaskReviewReal,
   taskDetailReal,
@@ -37,6 +43,7 @@ import {
 } from './real';
 import type {
   ActivityLog,
+  AttendanceRequestItem,
   AvailabilitySlot,
   CommunityOption,
   ContributionNeed,
@@ -52,6 +59,7 @@ import type {
 } from '../types';
 import { SKILLS, assignmentStatus, taskAssignmentList } from '../types';
 import { loadDb, saveDb } from '../mocks/db';
+import type { Db } from '../mocks/db';
 
 export { ApiError, API_BASE } from './client';
 
@@ -81,22 +89,20 @@ async function withFallback<T>(real: () => Promise<T>, mock: () => Promise<T>): 
   }
 }
 
-// Tài khoản demo — mật khẩu chung "grotto123" (khớp seed BE và app offline).
-export const DEMO_PASSWORD = 'grotto123';
-export const DEMO_EMAILS = ['volunteer@grottoworks.vn', 'volunteer2@grottoworks.vn'];
+// Tài khoản demo — mật khẩu chung "GxThanhTam@2026" (khớp seed BE và app offline).
+export const DEMO_PASSWORD = 'GxThanhTam@2026';
+export const DEMO_EMAILS = ['tram.do@giaoxuthanhtam.org.vn', 'bao.huynh@giaoxuthanhtam.org.vn'];
 
 export type SessionUser = User;
 
 /**
- * Trạng thái phân công để hiển thị/lọc. BE chưa trả assignment trong `TaskDto`
- * (`GET /users/me/tasks` chỉ trả task mà TNV đã có phân công) → khi dùng dữ
- * liệu thật, coi là ACCEPTED; ngoài ra dùng dữ liệu mock.
+ * Trạng thái phân công để hiển thị/lọc. Dữ liệu thật đã được overlay từ
+ * `GET /users/me/assignments` trong `real.ts` nên dùng chung một logic.
  */
 export function myAssignmentStatus(
   task: Task,
   volunteerId: string,
 ): TaskAssignment['status'] | undefined {
-  if (realApi) return 'ACCEPTED';
   return assignmentStatus(task, volunteerId);
 }
 
@@ -116,11 +122,24 @@ export async function login(email: string, password: string): Promise<SessionUse
 async function mockLogin(email: string, password: string): Promise<SessionUser> {
   await delay(400);
   const db = await loadDb();
-  const user = db.users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+  const normalized = email.trim().toLowerCase();
+  const user =
+    db.users.find((u) => u.email.toLowerCase() === normalized) ?? demoMockUser(db, normalized);
   if (!user || password !== DEMO_PASSWORD) {
     throw new Error('INVALID_CREDENTIALS');
   }
-  return user;
+  return { ...user, email: normalized };
+}
+
+/**
+ * Tài khoản demo gợi ý trên màn đăng nhập là tài khoản seed của BE, không nằm
+ * trong mock → map sang TNV mock cùng vai để app vẫn đăng nhập được khi Gateway
+ * không chạy (offline).
+ */
+function demoMockUser(db: Db, email: string): User | undefined {
+  const index = DEMO_EMAILS.indexOf(email);
+  if (index < 0) return undefined;
+  return db.users.filter((u) => u.role === 'VOLUNTEER')[index];
 }
 
 /** Hồ sơ của chính mình: BE `GET /api/v1/users/me` (bỏ qua `id` của phiên cũ). */
@@ -395,30 +414,34 @@ async function logActivity(actor: string, action: string, target: string): Promi
   await saveDb(db);
 }
 
-// TNV phản hồi phân công (accept/decline). BE yêu cầu `assignmentId` nhưng
-// TaskDto không trả về cho TNV → chỉ hỗ trợ ở chế độ offline (demo).
+// TNV phản hồi phân công (accept/decline). BE cần `assignmentId` của chính TNV
+// → tra qua `GET /users/me/assignments`; offline thì ghi vào mock DB.
 export async function respondAssignment(
   taskId: string,
   volunteerId: string,
   status: 'ACCEPTED' | 'DECLINED',
   note?: string,
 ): Promise<Task> {
-  if (realApi) throw new Error('BE_UNSUPPORTED_ASSIGNMENT_RESPONSE');
-  await delay(250);
-  const db = await loadDb();
-  const task = db.tasks.find((t) => t.id === taskId);
-  if (!task) throw new Error('NOT_FOUND');
-  const list = taskAssignmentList(task).filter((a) => a.volunteerId !== volunteerId);
-  list.push(note ? { volunteerId, status, note } : { volunteerId, status });
-  task.assignments = list;
-  task.assignees =
-    status === 'ACCEPTED'
-      ? [...new Set([...task.assignees, volunteerId])]
-      : task.assignees.filter((v) => v !== volunteerId);
-  await saveDb(db);
-  const verb = status === 'ACCEPTED' ? 'nhận' : 'từ chối';
-  await logActivity('Bạn', `${verb} nhiệm vụ "${task.title}"`, task.title);
-  return task;
+  return withFallback(
+    () => respondAssignmentReal(taskId, status, note),
+    async () => {
+      await delay(250);
+      const db = await loadDb();
+      const task = db.tasks.find((t) => t.id === taskId);
+      if (!task) throw new Error('NOT_FOUND');
+      const list = taskAssignmentList(task).filter((a) => a.volunteerId !== volunteerId);
+      list.push(note ? { volunteerId, status, note } : { volunteerId, status });
+      task.assignments = list;
+      task.assignees =
+        status === 'ACCEPTED'
+          ? [...new Set([...task.assignees, volunteerId])]
+          : task.assignees.filter((v) => v !== volunteerId);
+      await saveDb(db);
+      const verb = status === 'ACCEPTED' ? 'nhận' : 'từ chối';
+      await logActivity('Bạn', `${verb} nhiệm vụ "${task.title}"`, task.title);
+      return task;
+    },
+  );
 }
 
 // TNV gửi duyệt hoàn thành kèm ≥1 ảnh minh chứng.
@@ -516,16 +539,66 @@ const today = () => new Date().toISOString().slice(0, 10);
 const nowHHMM = () =>
   new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-// Vào ca: BE yêu cầu `assignmentId` (POST /task-assignments/{id}/attendance/
-// check-in-requests) mà TNV không lấy được → chỉ hỗ trợ ở chế độ offline.
-export async function checkIn(volunteerId: string): Promise<Timesheet> {
-  if (realApi) throw new Error('BE_UNSUPPORTED_CHECK_IN');
+/**
+ * Đơn vào ca của chính TNV: BE `GET /api/v1/users/me/attendance-requests` (mặc
+ * định PENDING). Nhờ vậy app hiển thị "chờ trưởng khu duyệt" ngay sau khi gửi đơn.
+ */
+export async function listMyAttendanceRequests(
+  status: AttendanceRequestItem['status'] = 'PENDING',
+): Promise<AttendanceRequestItem[]> {
+  return withFallback(
+    async () => {
+      const rows = await myAttendanceRequestsReal(status);
+      return rows.map((row) => ({
+        id: row.id,
+        assignmentId: row.assignmentId,
+        status: (row.status ?? 'PENDING').toUpperCase() as AttendanceRequestItem['status'],
+        requestedAt: row.requestedAt ?? new Date().toISOString(),
+        note: row.note ?? null,
+        version: row.version,
+      }));
+    },
+    // Offline: mock không có khái niệm đơn chờ duyệt.
+    async () => [] as AttendanceRequestItem[],
+  );
+}
+
+/** Huỷ đơn vào ca đang chờ duyệt: BE `POST /api/v1/attendance-requests/{id}/cancel`. */
+export async function cancelAttendanceRequest(requestId: string, version: number): Promise<void> {
+  await cancelAttendanceRequestReal(requestId, version);
+}
+
+/**
+ * Kết quả vào ca.
+ * - Online: BE tạo **đơn xin vào ca** PENDING → `pendingApproval = true`; phiên
+ *   giờ công (và việc chuyển `IN_PROGRESS`) chỉ có sau khi trưởng khu duyệt.
+ * - Offline (mock): tạo phiên mở ngay.
+ */
+export interface CheckInResult {
+  timesheet?: Timesheet;
+  pendingApproval: boolean;
+}
+
+/**
+ * Vào ca. Online: `POST /task-assignments/{assignmentId}/attendance/check-in-requests`
+ * (cần `taskId` để tra `assignmentId` từ `GET /users/me/assignments`).
+ */
+export async function checkIn(
+  volunteerId: string,
+  taskId?: string,
+  note?: string,
+): Promise<CheckInResult> {
+  if (realApi) {
+    if (!taskId) throw new Error('TASK_REQUIRED');
+    await requestCheckInReal(taskId, note);
+    return { pendingApproval: true };
+  }
   await delay(250);
   const db = await loadDb();
   const existing = db.timesheets.find(
     (t) => t.volunteerId === volunteerId && t.date === today() && t.status === 'OPEN',
   );
-  if (existing) return existing;
+  if (existing) return { timesheet: existing, pendingApproval: false };
   const ts: Timesheet = {
     id: `ts-${Date.now()}`,
     volunteerId,
@@ -537,11 +610,45 @@ export async function checkIn(volunteerId: string): Promise<Timesheet> {
   db.timesheets.push(ts);
   await saveDb(db);
   await logActivity('Bạn', `bắt đầu đóng góp lúc ${ts.checkIn}`, `Giờ đóng góp ${ts.date}`);
-  return ts;
+  return { timesheet: ts, pendingApproval: false };
 }
 
-export async function checkOut(volunteerId: string): Promise<Timesheet> {
-  if (realApi) throw new Error('BE_UNSUPPORTED_CHECK_IN');
+/**
+ * Kết thúc ca. Online: `POST /task-assignments/{assignmentId}/attendance/check-out`
+ * (kèm `If-Match` version của phiên đang mở).
+ */
+export async function checkOut(volunteerId: string): Promise<CheckInResult> {
+  if (realApi) {
+    const open = await openSessionReal();
+    if (!open) throw new Error('NO_OPEN_SESSION');
+    const dto = await requestCheckOutReal(open.assignmentId, open.version);
+    return {
+      timesheet: {
+        id: dto.id,
+        volunteerId,
+        date: (dto.checkInAt ?? '').slice(0, 10),
+        checkIn: new Date(dto.checkInAt).toLocaleTimeString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }),
+        ...(dto.checkOutAt
+          ? {
+              checkOut: new Date(dto.checkOutAt).toLocaleTimeString('vi-VN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+              }),
+            }
+          : {}),
+        hours: Math.round((dto.approvedMinutes / 60) * 10) / 10,
+        status: dto.checkOutAt ? 'CLOSED' : 'OPEN',
+        assignmentId: dto.assignmentId,
+        version: dto.version,
+      },
+      pendingApproval: false,
+    };
+  }
   await delay(250);
   const db = await loadDb();
   const open = db.timesheets.find(
@@ -557,7 +664,7 @@ export async function checkOut(volunteerId: string): Promise<Timesheet> {
   open.status = 'CLOSED';
   await saveDb(db);
   await logActivity('Bạn', `kết thúc đóng góp lúc ${out} (${hours} giờ)`, `Giờ đóng góp ${open.date}`);
-  return open;
+  return { timesheet: open, pendingApproval: false };
 }
 
 // Yêu cầu chỉnh giờ công. Online: `POST /attendance/{id}/correction-requests`

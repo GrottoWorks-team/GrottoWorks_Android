@@ -59,7 +59,8 @@ index.ts (registerRootComponent)
                                   Tasks(TasksNavigator) · Timesheets · Home · Notifications · Profile(ProfileNavigator)
 ```
 
-- The app runs **fully offline with a mock data layer**. There is no HTTP client and no MSW. `src/api/index.ts` exposes async functions that read/write an AsyncStorage-backed mock DB (`src/mocks/db.ts`, key `grotto-mobile-db-v2`) seeded deterministically from `src/mocks/seed.ts`. To adopt a real backend, replace the function bodies in `src/api/index.ts` with `fetch` while keeping their signatures and the hooks intact.
+- `src/api/client.ts` gọi BE thật (fetch + Bearer token, refresh 1 lần khi 401). `src/api/real.ts` map DTO ↔ domain type; `src/api/index.ts` chọn BE hay mock: gọi thật trước, **chỉ rơi về mock khi lỗi mạng** (`ApiError.offline`), lỗi nghiệp vụ vẫn ném ra cho UI. Endpoint BE chưa có (hiện là phân công + chấm công vì thiếu `assignmentId`) thì ném lỗi và UI ẩn hành động đó.
+- `src/mocks/db.ts` + `src/mocks/seed.ts` là DB AsyncStorage (`grotto-mobile-db-v2`) dùng cho chế độ offline.
 - `src/api/hooks.ts` is the only place React Query is used: tuple query keys under `keys`, `useQuery` / `useMutation`, and `invalidateQueries` after every mutation. Screens consume these hooks and do not call `src/api` directly for reads.
 - The session persists in AsyncStorage under `grotto-mobile-session-v1`. `AuthProvider` restores it on boot and exposes `restoring` so `RootNavigator` can show a spinner instead of flashing the login screen.
 - Demo login: password is always `grotto`; accounts are `volunteer@grottoworks.vn` and `volunteer2@grottoworks.vn`.
@@ -76,7 +77,7 @@ index.ts (registerRootComponent)
 - `src/features/auth/` — `LoginScreen`.
 - `src/features/volunteer/` — volunteer screens: `HomeScreen`, `TaskListScreen`, `TaskDetailScreen`, `OpenTaskDetailScreen`, `TimesheetScreen`, `NotificationsScreen`, and `profile/` (`ProfileViewScreen`, `ProfileEditScreen`).
 - `src/components/` — shared UI: `Screen` (SafeArea + signature gradient), `ScreenHeader`, `AppText`, `Button`, `Card`, `StatusTag`, `Avatar`, `Calendar`, `EmptyState`, `PhotoPicker`, `Snowfall`, `Toast`.
-- `src/api/` — mock data layer (`index.ts`) and React Query hooks (`hooks.ts`).
+- `src/api/` — `client.ts` (HTTP + token), `real.ts` (gọi BE thật), `index.ts` (chọn BE/mock, fallback khi offline) and React Query hooks (`hooks.ts`).
 - `src/mocks/` — `seed.ts` (deterministic sample data) and `db.ts` (AsyncStorage-backed mock DB).
 - `src/navigation/` — navigators and route param types.
 - `src/theme/tokens.ts` — Golden Winter design tokens (`colors`, `radius`, `spacing`, `fontSize`, `elevation`, `screenGradient`).

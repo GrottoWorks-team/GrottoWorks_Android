@@ -11,7 +11,7 @@ Xây dựng bằng **Expo (SDK 57) + React Native + TypeScript + React Navigatio
 | Tab | Chức năng |
 | --- | --- |
 | **Nhiệm vụ** | 2 sub-tab: **Việc của tôi** (lọc chờ/đang làm/xong, chi tiết, **nhận / từ chối kèm lý do**, gửi duyệt hoàn thành) và **Đang tuyển** (task mở đăng ký, sắp theo độ khớp kỹ năng, **gửi đơn đăng ký** + **rút đơn**) |
-| **Giờ đóng góp** | **Lịch tháng** đánh dấu ngày có giờ đóng góp / có việc đến hạn; chọn ngày xem giờ đóng góp + việc cần làm; check-in/check-out, yêu cầu chỉnh giờ |
+| **Giờ đóng góp** | **Lịch tháng** đánh dấu ngày có giờ đóng góp / có việc đến hạn; chọn ngày xem giờ đóng góp + việc cần làm; **xin vào ca / kết thúc ca** (BE `check-in-requests` → trưởng khu duyệt), yêu cầu chỉnh giờ |
 | **Trang chủ** (giữa) | **Giờ đóng góp tuần (nổi bật)**, lời mời đang chờ, đơn đăng ký của tôi, gợi ý nhiệm vụ đang tuyển, nhiệm vụ đang làm |
 | **Thông báo** | Thông báo in-app của TNV (mời phân công, **kết quả đăng ký**, ghi giờ…) |
 | **Hồ sơ** | **Chế độ xem** (avatar theo màu riêng, tên/email, điểm & giờ đóng góp, kỹ năng, thời gian rảnh, **thông tin phiên bản**) → nút **Chỉnh sửa** mở trang phụ để cập nhật hồ sơ/kỹ năng/thời gian rảnh; đăng xuất |
@@ -58,13 +58,34 @@ Sau đó:
 
 - **Trên điện thoại:** mở **Expo Go** và quét mã QR hiện trong terminal.
 - **Trên emulator:** nhấn `a` (Android) hoặc `i` (iOS, cần macOS).
+- **Trên web (xem nhanh):** `npm run web` (mặc định cổng 8081).
+
+### Backend (API Gateway)
+
+App gọi API thật qua Gateway `http://localhost:6102/api/v1` (bật bằng
+`docker compose up -d` trong `GrottoWorks_BE`); khi Gateway không gọi được app tự
+rơi về dữ liệu mock nên vẫn demo được offline.
+
+- **Web:** dùng `localhost:6102` — nhớ thêm origin của Expo (`localhost:8081`,
+  `localhost:8082`) vào `Cors:AllowedOrigins` của Gateway (đã có trong
+  `appsettings.Development.json`), nếu không trình duyệt sẽ chặn request.
+- **Điện thoại / emulator:** app tự lấy IP LAN của máy đang chạy Metro
+  (`Constants.expoConfig.hostUri`) rồi trỏ tới cổng 6102 của máy đó — điện thoại
+  và máy tính phải cùng một mạng LAN.
+- **Khác mạng / BE ở máy khác:** chỉ định rõ base URL:
+
+  ```bash
+  EXPO_PUBLIC_API_URL=http://192.168.1.10:6102/api/v1 npx expo start
+  ```
 
 ## Tài khoản demo
 
-Mật khẩu chung: **`grotto`**
+Mật khẩu chung: **`GxThanhTam@2026`** (khớp seed BE).
 
 | Email | Vai trò |
 | --- | --- |
+| `tram.do@giaoxuthanhtam.org.vn` | TNV — tài khoản seed của BE (offline: ánh xạ sang TNV mock `v1`) |
+| `bao.huynh@giaoxuthanhtam.org.vn` | TNV — tài khoản seed của BE (offline: ánh xạ sang TNV mock `v2`) |
 | `volunteer@grottoworks.vn` | TNV Gioan Bùi Văn Hùng — có 1 lời mời (PENDING), 2 việc đang làm, 1 việc đã từ chối |
 | `volunteer2@grottoworks.vn` | TNV Agnês Trần Ngọc Anh |
 
@@ -104,3 +125,23 @@ src/
   REJECTED) là **đơn TNV → leader**. Cả hai ở `src/types/index.ts`.
 - **Mở rộng backend:** để nối backend thật, thay ruột `src/api/index.ts` — giữ
   nguyên `VolunteerReg`/`TaskAssignment` và các hook trong `src/api/hooks.ts`.
+- **Vào ca / bắt đầu việc:** TNV bấm **Bắt đầu làm việc** (chi tiết nhiệm vụ) →
+  `POST /task-assignments/{assignmentId}/attendance/check-in-requests` (kèm
+  `Idempotency-Key`, `assignmentId` tra từ `GET /users/me/assignments`). BE tạo
+  **đơn PENDING**; task chỉ chuyển `IN_PROGRESS` sau khi trưởng khu duyệt
+  (`POST /attendance-requests/{id}/approve`). Vì vậy app đọc thêm
+  `GET /users/me/attendance-requests` để hiển thị nhãn **"Chờ duyệt vào ca"**
+  (kèm nút huỷ đơn `POST /attendance-requests/{id}/cancel`) và **"Đang trong ca"**
+  — trạng thái *của việc* (`Chưa bắt đầu`/`Đang làm`) vẫn lấy từ BE. Kết thúc ca
+  dùng `POST .../attendance/check-out` với `If-Match` version của phiên.
+- **Làm mới dữ liệu:** kéo xuống để làm mới ở Trang chủ / Nhiệm vụ / Giờ đóng góp /
+  Chi tiết nhiệm vụ (`RefreshControl` + `useRefreshControl`), đồng thời app tự
+  refetch khi quay lại foreground (`focusManager` gắn `AppState` trong `App.tsx`).
+- **Nộp duyệt hoàn thành (ảnh minh chứng):** upload 3 bước lên MinIO
+  (`POST /files/upload-requests` → `PUT <presigned>` → `POST /files/{id}/complete`)
+  rồi `POST /tasks/{id}/submit|resubmit`. Yêu cầu:
+  - content type lấy từ **file thật** (web: `Blob.type`, native: `File.type`) — không
+    đoán theo đuôi URI (`blob:` URL không có đuôi → BE trả `FILE_CONTENT_TYPE_MISMATCH`);
+  - MinIO phải cho CORS origin của app (`MINIO_API_CORS_ALLOW_ORIGIN`);
+  - điện thoại phải trỏ tới MinIO bằng IP LAN (`MINIO_PUBLIC_ENDPOINT`), vì presigned
+    URL mặc định là `localhost:9000`. Lỗi upload hiện ngay trong modal, không im lặng.

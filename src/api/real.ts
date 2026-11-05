@@ -1,15 +1,16 @@
 // Lời gọi BE THẬT — chỉ những endpoint BE đã có (xem `api-contracts.md`):
 //
 //   POST  /api/v1/auth/login            GET  /api/v1/users/me
+//   GET   /api/v1/users/me/tasks        GET  /api/v1/users/me/assignments
+//   POST  /api/v1/task-assignments/{id}/accept|decline
+//   POST  /api/v1/task-assignments/{id}/attendance/check-in-requests|check-out
 //   PATCH /api/v1/users/me              GET  /api/v1/skills
 //   GET   /api/v1/seasons               GET  /api/v1/seasons/{seasonId}/work-areas
 //   GET   /api/v1/users/me/tasks        GET  /api/v1/tasks/{taskId}
 //   GET   /api/v1/work-areas/{id}/tasks POST /api/v1/tasks/{taskId}/applications
-//   GET   /api/v1/users/me/attendance
+//   GET   /api/v1/users/me/attendance            GET /api/v1/users/me/attendance-requests
 //
 // CHƯA nối được (BE thiếu dữ liệu/endpoint):
-//   - accept/decline phân công và check-in/out đều cần `assignmentId`, mà
-//     TaskDto/AttendanceDto không trả về cho TNV.
 //   - nộp minh chứng hoàn thành: chưa có endpoint.
 //   - liệt kê/huỷ đơn đăng ký của chính TNV: chưa có endpoint.
 // Vật tư, thông báo vẫn mock ở `./index.ts`.
@@ -22,6 +23,7 @@ import type {
   Role,
   Skill,
   Task,
+  TaskAssignment,
   Timesheet,
   User,
   VolunteerReg,
@@ -29,6 +31,7 @@ import type {
 } from '../types';
 import { http, saveTokens, ApiError } from './client';
 import type { TokenPair } from './client';
+import { Platform } from 'react-native';
 import { File } from 'expo-file-system';
 import { fetch as expoFetch } from 'expo/fetch';
 
@@ -280,6 +283,9 @@ export interface TaskDto {
   version: number;
   createdAt: string;
   updatedAt?: string | null;
+  /** Yêu cầu kỹ năng/vật tư (BE trả kèm từ 05/11). */
+  skills?: { skillId: string; requiredSkillLevel?: string | null; requiredVolunteerCount?: number | null }[];
+  materials?: { materialId: string; requiredQuantity: number; note?: string | null }[];
 }
 
 export interface TaskApplicationDto {
@@ -302,6 +308,58 @@ export interface AttendanceDto {
   approvedMinutes: number;
   status: string;
   version: number;
+}
+
+/** `AssignmentDto` của TaskExecution (GET /users/me/assignments). */
+export interface AssignmentDto {
+  id: string;
+  taskId: string;
+  volunteerId: string;
+  assignmentType?: string | null;
+  status: string;
+  note?: string | null;
+  version: number;
+  requestedAt?: string | null;
+  assignedAt?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  responseReason?: string | null;
+}
+
+const MOBILE_ASSIGNMENT_STATUS: Record<string, TaskAssignment['status']> = {
+  PENDING: 'PENDING',
+  ACCEPTED: 'ACCEPTED',
+  IN_PROGRESS: 'ACCEPTED',
+  COMPLETED: 'ACCEPTED',
+  DECLINED: 'DECLINED',
+  CANCELLED: 'DECLINED',
+};
+
+/** AssignmentDto → overlay phân công của mobile (kèm `assignmentId` để phản hồi). */
+export function toAssignment(dto: AssignmentDto): TaskAssignment {
+  return {
+    volunteerId: dto.volunteerId,
+    status: MOBILE_ASSIGNMENT_STATUS[(dto.status ?? '').toUpperCase()] ?? 'PENDING',
+    ...(dto.note ? { note: dto.note } : {}),
+    assignmentId: dto.id,
+  };
+}
+
+/** Gắn phân công của chính TNV vào task (BE không trả kèm trong `TaskDto`). */
+function withMyAssignment(task: Task, assignment?: AssignmentDto): Task {
+  if (!assignment) return task;
+  const overlay = toAssignment(assignment);
+  return {
+    ...task,
+    assignments: [
+      ...(task.assignments ?? []).filter((row) => row.volunteerId !== overlay.volunteerId),
+      overlay,
+    ],
+    assignees:
+      overlay.status === 'ACCEPTED'
+        ? [...new Set([...task.assignees, overlay.volunteerId])]
+        : task.assignees.filter((id) => id !== overlay.volunteerId),
+  };
 }
 
 const TASK_STATUS: Record<string, Task['status']> = {
@@ -328,8 +386,13 @@ export function toTask(dto: TaskDto): Task {
     estimateHours: Math.round((dto.estimatedMinutes / 60) * 10) / 10,
     volunteersNeeded: dto.requiredVolunteers,
     assignees: [],
-    materialIds: [],
+    materialIds: (dto.materials ?? []).map((material) => material.materialId),
+    materialNeeds: Object.fromEntries(
+      (dto.materials ?? []).map((material) => [material.materialId, material.requiredQuantity]),
+    ),
     status: TASK_STATUS[(dto.status ?? '').toUpperCase()] ?? 'TODO',
+    backendStatus: (dto.status ?? '').toUpperCase(),
+    startAt: dto.startAt ?? null,
     dueDate: (dto.deadline ?? '').slice(0, 10),
     submittedPhotos: 0,
     ...(dto.completionCriteria ? { completionCriteria: dto.completionCriteria } : {}),
@@ -357,19 +420,61 @@ export function toTimesheet(dto: AttendanceDto): Timesheet {
     status: ATTENDANCE_STATUS[(dto.status ?? '').toUpperCase()] ?? 'CLOSED',
     checkInAt: dto.checkInAt,
     ...(dto.checkOutAt ? { checkOutAt: dto.checkOutAt } : {}),
+    assignmentId: dto.assignmentId,
     version: dto.version,
   };
 }
 
+/** GET /api/v1/users/me/assignments — phân công + đơn đăng ký của chính TNV. */
+export async function myAssignmentsReal(): Promise<AssignmentDto[]> {
+  return await http<AssignmentDto[]>('/users/me/assignments');
+}
+
 /** GET /api/v1/users/me/tasks — nhiệm vụ BE đã gắn cho TNV đang đăng nhập. */
 export async function myTasksReal(): Promise<Task[]> {
-  const dtos = await http<TaskDto[]>('/users/me/tasks?size=100');
-  return dtos.map(toTask);
+  const [dtos, mine] = await Promise.all([
+    http<TaskDto[]>('/users/me/tasks?size=100'),
+    myAssignmentsReal().catch(() => [] as AssignmentDto[]),
+  ]);
+  const byTask = new Map(mine.map((row) => [row.taskId, row]));
+  return dtos.map((dto) => withMyAssignment(toTask(dto), byTask.get(dto.id)));
+}
+
+/**
+ * POST /api/v1/task-assignments/{assignmentId}/accept|decline.
+ * BE yêu cầu `assignmentId` của chính TNV → tra từ `/users/me/assignments`.
+ */
+export async function respondAssignmentReal(
+  taskId: string,
+  status: 'ACCEPTED' | 'DECLINED',
+  note?: string,
+): Promise<Task> {
+  const mine = await myAssignmentsReal();
+  const assignment = mine.find(
+    (row) =>
+      row.taskId === taskId &&
+      (row.status ?? '').toUpperCase() === 'PENDING' &&
+      (row.assignmentType ?? 'DIRECT').toUpperCase() !== 'APPLICATION',
+  );
+  if (!assignment) throw new Error('ASSIGNMENT_NOT_FOUND');
+  const reason = note?.trim();
+  await http<AssignmentDto>(`/task-assignments/${assignment.id}/${status === 'ACCEPTED' ? 'accept' : 'decline'}`, {
+    method: 'POST',
+    body:
+      status === 'ACCEPTED'
+        ? { version: assignment.version }
+        : { version: assignment.version, reason: reason || 'Không thể tham gia' },
+  });
+  return taskDetailReal(taskId);
 }
 
 /** GET /api/v1/tasks/{taskId}. */
 export async function taskDetailReal(taskId: string): Promise<Task> {
-  return toTask(await http<TaskDto>(`/tasks/${taskId}`));
+  const [dto, mine] = await Promise.all([
+    http<TaskDto>(`/tasks/${taskId}`),
+    myAssignmentsReal().catch(() => [] as AssignmentDto[]),
+  ]);
+  return withMyAssignment(toTask(dto), mine.find((row) => row.taskId === taskId));
 }
 
 /** GET /api/v1/work-areas/{workAreaId}/tasks. */
@@ -384,13 +489,24 @@ export async function areaTasksReal(workAreaId: string): Promise<Task[]> {
  * KHÔNG gộp task đang thực hiện (IN_PROGRESS)/chưa bắt đầu (NOT_STARTED).
  */
 export async function openTasksReal(): Promise<Task[]> {
-  const areas = await listAreasReal();
+  const [areas, mine] = await Promise.all([
+    listAreasReal(),
+    myAssignmentsReal().catch(() => [] as AssignmentDto[]),
+  ]);
+  // Đã có phân công/đơn đăng ký (trừ khi đã từ chối/huỷ) → không còn trong "Đang tuyển".
+  const activeTaskIds = new Set(
+    mine
+      .filter((row) => !['DECLINED', 'CANCELLED'].includes((row.status ?? '').toUpperCase()))
+      .map((row) => row.taskId),
+  );
   const perArea = await Promise.all(
     areas.map((area) => areaTaskDtos(area.id).catch(() => [] as TaskDto[])),
   );
   const open = perArea
     .flat()
-    .filter((dto) => (dto.status ?? '').toUpperCase() === 'OPEN')
+    .filter(
+      (dto) => (dto.status ?? '').toUpperCase() === 'OPEN' && !activeTaskIds.has(dto.id),
+    )
     .map(toTask);
   return [...new Map(open.map((task) => [task.id, task])).values()];
 }
@@ -425,6 +541,108 @@ export async function myAttendanceReal(): Promise<Timesheet[]> {
   return dtos
     .map(toTimesheet)
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+}
+
+// ── Vào ca / kết thúc ca (chấm công) ───────────────────────────────────────
+// BE chỉ cho TNV xin vào ca; phiên làm việc + việc chuyển `IN_PROGRESS` chỉ xảy
+// ra khi trưởng khu duyệt đơn (`POST /attendance-requests/{id}/approve`).
+
+/** `AttendanceRequestDto` của TaskExecution (đơn xin vào ca). */
+export interface AttendanceRequestDto {
+  id: string;
+  assignmentId: string;
+  volunteerId?: string;
+  status: string;
+  note?: string | null;
+  requestedAt?: string | null;
+  reviewedAt?: string | null;
+  version: number;
+}
+
+/** UUID v4 đơn giản (BE bắt buộc header `Idempotency-Key` là UUID). */
+function newIdempotencyKey(): string {
+  const hex = (n: number) =>
+    Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  return `${hex(8)}-${hex(4)}-4${hex(3)}-a${hex(3)}-${hex(12)}`;
+}
+
+/** Phân công ACCEPTED của chính TNV cho một việc (cần `assignmentId` để vào ca). */
+export async function myAcceptedAssignmentReal(taskId: string): Promise<AssignmentDto | undefined> {
+  const mine = await myAssignmentsReal();
+  return mine.find(
+    (row) => row.taskId === taskId && (row.status ?? '').toUpperCase() === 'ACCEPTED',
+  );
+}
+
+/**
+ * POST /api/v1/task-assignments/{assignmentId}/attendance/check-in-requests
+ * TNV xin vào ca → đơn PENDING, chờ trưởng khu duyệt rồi mới có giờ công.
+ */
+export async function requestCheckInReal(
+  taskId: string,
+  note?: string,
+): Promise<AttendanceRequestDto> {
+  const assignment = await myAcceptedAssignmentReal(taskId);
+  if (!assignment) throw new Error('ASSIGNMENT_NOT_FOUND');
+  return await http<AttendanceRequestDto>(
+    `/task-assignments/${assignment.id}/attendance/check-in-requests`,
+    {
+      method: 'POST',
+      headers: { 'Idempotency-Key': newIdempotencyKey() },
+      body: { note: note?.trim() || null },
+    },
+  );
+}
+
+/** POST /task-assignments/{assignmentId}/attendance/check-out — kết thúc ca đang mở. */
+export async function requestCheckOutReal(
+  assignmentId: string,
+  version: number,
+): Promise<AttendanceDto> {
+  return await http<AttendanceDto>(`/task-assignments/${assignmentId}/attendance/check-out`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': newIdempotencyKey(), 'If-Match': `"${version}"` },
+    body: { version },
+  });
+}
+
+/** Phiên đang mở của chính TNV (đã duyệt check-in, chưa check-out). */
+export async function openSessionReal(): Promise<
+  { assignmentId: string; version: number } | undefined
+> {
+  const rows = await http<AttendanceDto[]>('/users/me/attendance?size=100');
+  const open = rows.find(
+    (row) => (row.status ?? '').toUpperCase() === 'OPEN' && !row.checkOutAt,
+  );
+  return open ? { assignmentId: open.assignmentId, version: open.version } : undefined;
+}
+
+/**
+ * POST /api/v1/attendance-requests/{requestId}/cancel — TNV huỷ đơn vào ca đang
+ * chờ duyệt (để không bị kẹt khi đã gửi nhầm việc/giờ).
+ */
+export async function cancelAttendanceRequestReal(
+  requestId: string,
+  version: number,
+): Promise<AttendanceRequestDto> {
+  return await http<AttendanceRequestDto>(`/attendance-requests/${requestId}/cancel`, {
+    method: 'POST',
+    headers: { 'If-Match': `"${version}"` },
+    body: { version },
+  });
+}
+
+/**
+ * GET /api/v1/users/me/attendance-requests — đơn vào ca của chính TNV (mặc định
+ * PENDING). Nhờ vậy sau khi gửi đơn, app hiển thị "chờ trưởng khu duyệt" thay vì
+ * để nhiệm vụ ở trạng thái "Chưa bắt đầu" mà không giải thích.
+ */
+export async function myAttendanceRequestsReal(
+  status = 'PENDING',
+): Promise<AttendanceRequestDto[]> {
+  return await http<AttendanceRequestDto[]>(
+    `/users/me/attendance-requests?status=${status}&size=50`,
+  );
 }
 
 // ── Điểm ghi nhận (Reporting) ───────────────────────────────────────────────
@@ -637,30 +855,33 @@ interface UploadIntentDto {
   expiresAt: string;
 }
 
-const fileNameOf = (uri: string): string => {
-  const base = uri.split('/').pop() || 'evidence';
-  return base.includes('.') ? base : `${base}.jpg`;
+const extensionFor = (contentType: string): string => {
+  if (contentType === 'image/png') return '.png';
+  if (contentType === 'image/heic') return '.heic';
+  if (contentType === 'image/webp') return '.webp';
+  return '.jpg';
 };
 
-const contentTypeOf = (name: string): string => {
-  const ext = name.split('.').pop()?.toLowerCase();
-  if (ext === 'png') return 'image/png';
-  if (ext === 'heic') return 'image/heic';
-  if (ext === 'webp') return 'image/webp';
-  return 'image/jpeg';
+/** Tên tệp gửi BE: giữ tên gốc, thêm phần mở rộng khớp **content type thật**. */
+const fileNameFor = (uri: string, contentType: string): string => {
+  const raw = uri.split('/').pop() || 'evidence';
+  const base = raw.includes('.') ? raw.slice(0, raw.lastIndexOf('.')) : raw;
+  return `${base || 'evidence'}${extensionFor(contentType)}`;
 };
 
 /**
  * Upload ảnh minh chứng lên NotificationAudit (MinIO presigned, 3 bước giống web):
  * `POST /files/upload-requests` → `PUT <uploadUrl>` → `POST /files/{id}/complete`.
  * Trả về `fileId` để gắn vào tiến độ/nghiệm thu.
+ *
+ * Content type lấy từ **file thật** (không đoán theo đuôi URI): URI web là
+ * `blob:http://…/<uuid>` không có đuôi, đoán theo đuôi sẽ khai `image/jpeg` cho
+ * ảnh PNG → BE chặn `FILE_CONTENT_TYPE_MISMATCH`.
  */
 export async function uploadEvidenceFile(uri: string): Promise<string> {
-  const file = new File(uri);
-  const name = fileNameOf(uri);
-  const contentType = contentTypeOf(name);
-  const sizeBytes = file.size ?? 0;
+  const { body, sizeBytes, contentType } = await evidenceBody(uri);
   if (!sizeBytes) throw new Error('EVIDENCE_UPLOAD_SIZE_UNKNOWN');
+  const name = fileNameFor(uri, contentType);
 
   const intent = await http<UploadIntentDto>('/files/upload-requests', {
     method: 'POST',
@@ -673,13 +894,26 @@ export async function uploadEvidenceFile(uri: string): Promise<string> {
     },
   });
 
-  // Presigned URL nằm trên MinIO (không qua gateway) → dùng expo/fetch để gửi
-  // body nhị phân trực tiếp từ file cục bộ.
-  const res = await expoFetch(intent.uploadUrl, {
-    method: (intent.method || 'PUT') as 'PUT',
-    headers: intent.headers ?? {},
-    body: file,
-  });
+  // Presigned URL nằm trên MinIO (không qua gateway) → gửi body nhị phân trực
+  // tiếp. Native dùng `File` của expo-file-system + `expo/fetch`; web dùng
+  // `Blob` + `fetch` của trình duyệt (expo-file-system không chạy trên web).
+  let res: { ok: boolean; status: number };
+  try {
+    res =
+      Platform.OS === 'web'
+        ? await fetch(intent.uploadUrl, {
+            method: (intent.method || 'PUT') as 'PUT',
+            headers: intent.headers ?? {},
+            body,
+          })
+        : await expoFetch(intent.uploadUrl, {
+            method: (intent.method || 'PUT') as 'PUT',
+            headers: intent.headers ?? {},
+            body: body as File,
+          });
+  } catch {
+    throw new ApiError(0, 'EVIDENCE_UPLOAD_FAILED');
+  }
   if (!res.ok) {
     throw new ApiError(res.status, `EVIDENCE_UPLOAD_FAILED (${res.status})`);
   }
@@ -689,6 +923,22 @@ export async function uploadEvidenceFile(uri: string): Promise<string> {
     body: { checksum: null },
   });
   return intent.fileId;
+}
+
+/** Thân file để PUT lên MinIO + kích thước & content type **thật** của tệp. */
+async function evidenceBody(
+  uri: string,
+): Promise<{ body: Blob | File; sizeBytes: number; contentType: string }> {
+  if (Platform.OS === 'web') {
+    const blob = await (await fetch(uri)).blob();
+    return { body: blob, sizeBytes: blob.size, contentType: blob.type || 'image/jpeg' };
+  }
+  const file = new File(uri);
+  return {
+    body: file,
+    sizeBytes: file.size ?? 0,
+    contentType: file.type || 'image/jpeg',
+  };
 }
 
 /** GET /api/v1/tasks/{taskId}/progress — lịch sử tiến độ/nghiệm thu. */

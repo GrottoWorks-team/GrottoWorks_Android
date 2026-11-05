@@ -2,7 +2,7 @@
 // Chọn 1 ngày → hiện giờ đóng góp ngày đó + việc cần làm (task chưa xong đến hạn).
 // Kèm nút vào/ra ca và yêu cầu chỉnh giờ (như trước).
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Screen } from '../../components/Screen';
 import { AppText } from '../../components/AppText';
@@ -13,14 +13,17 @@ import { Calendar } from '../../components/Calendar';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../auth/AuthContext';
-import { isRealApiActive, ApiError } from '../../api';
+import { myAssignmentStatus, ApiError } from '../../api';
 import {
+  useCancelAttendanceRequest,
   useCheckIn,
   useCheckOut,
+  useMyAttendanceRequests,
   useMyTasks,
   useMyTimesheets,
   useRequestCorrection,
 } from '../../api/hooks';
+import { useRefreshControl } from '../../lib/useRefreshControl';
 import type { Timesheet } from '../../types';
 import { colors, radius, spacing } from '../../theme/tokens';
 
@@ -36,14 +39,21 @@ export function TimesheetScreen() {
   const toast = useToast();
   const { user } = useAuth();
   const volunteerId = user?.id ?? '';
-  const { data: timesheets = [] } = useMyTimesheets(volunteerId);
-  const { data: tasks = [] } = useMyTasks(volunteerId);
+  const timesheetsQuery = useMyTimesheets(volunteerId);
+  const { data: timesheets = [] } = timesheetsQuery;
+  const tasksQuery = useMyTasks(volunteerId);
+  const { data: tasks = [] } = tasksQuery;
   const checkIn = useCheckIn(volunteerId);
   const checkOut = useCheckOut(volunteerId);
+  const requestsQuery = useMyAttendanceRequests(volunteerId);
+  const { data: attendanceRequests = [] } = requestsQuery;
+  const cancelRequest = useCancelAttendanceRequest(volunteerId);
   const correction = useRequestCorrection(volunteerId);
-  // BE chưa cho TNV vào/ra ca (thiếu assignmentId) và chưa có endpoint chỉnh
-  // giờ theo lý do → ẩn hành động thay vì giả lập thành công.
-  const realMode = isRealApiActive();
+  const refresh = useRefreshControl([
+    timesheetsQuery.refetch,
+    tasksQuery.refetch,
+    requestsQuery.refetch,
+  ]);
 
   const now = new Date();
   const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() });
@@ -55,6 +65,31 @@ export function TimesheetScreen() {
 
   const openSession = timesheets.find((ts) => ts.status === 'OPEN');
   const totalHours = timesheets.reduce((s, ts) => s + ts.hours, 0);
+  // Việc đã nhận và đã phát hành (chưa nộp duyệt) → được phép xin vào ca.
+  const startableTask = tasks.find(
+    (task) =>
+      myAssignmentStatus(task, volunteerId) === 'ACCEPTED' &&
+      (task.backendStatus === 'NOT_STARTED' || task.backendStatus === 'IN_PROGRESS'),
+  );
+  const startableAssignmentId = startableTask?.assignments?.find(
+    (row) => row.volunteerId === volunteerId,
+  )?.assignmentId;
+  const pendingRequest = attendanceRequests.find(
+    (row) => row.assignmentId === startableAssignmentId,
+  );
+
+  const onCancelRequest = async () => {
+    if (!pendingRequest) return;
+    try {
+      await cancelRequest.mutateAsync({
+        requestId: pendingRequest.id,
+        version: pendingRequest.version,
+      });
+      toast(t('tasks.checkInCancelled'));
+    } catch (error) {
+      toast(error instanceof ApiError ? error.message : t('common.error'), 'alert');
+    }
+  };
 
   // Đánh dấu theo ngày cho lịch.
   const marks = useMemo(() => {
@@ -80,12 +115,29 @@ export function TimesheetScreen() {
     setView((v) => (v.month === 11 ? { year: v.year + 1, month: 0 } : { ...v, month: v.month + 1 }));
 
   const onCheckIn = async () => {
-    const ts = await checkIn.mutateAsync();
-    toast(t('timesheets.checkedIn', { time: ts.checkIn }));
+    if (!startableTask) return;
+    try {
+      const result = await checkIn.mutateAsync({ taskId: startableTask.id });
+      toast(
+        result.pendingApproval
+          ? t('tasks.checkInPending')
+          : t('timesheets.checkedIn', { time: result.timesheet?.checkIn ?? '' }),
+      );
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        toast(t('tasks.checkInAlready'), 'alert');
+        return;
+      }
+      toast(error instanceof ApiError ? error.message : t('common.error'), 'alert');
+    }
   };
   const onCheckOut = async () => {
-    const ts = await checkOut.mutateAsync();
-    toast(t('timesheets.checkedOut', { time: ts.checkOut ?? '' }));
+    try {
+      const result = await checkOut.mutateAsync();
+      toast(t('timesheets.checkedOut', { time: result.timesheet?.checkOut ?? '' }));
+    } catch (error) {
+      toast(error instanceof ApiError ? error.message : t('common.error'), 'alert');
+    }
   };
 
   const onCorrection = async () => {
@@ -103,7 +155,10 @@ export function TimesheetScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        refreshControl={<RefreshControl {...refresh} />}
+      >
         <ScreenHeader title={t('timesheets.title')} sub={t('timesheets.sub')} />
 
         {/* Tổng giờ + nút vào/ra ca */}
@@ -124,21 +179,34 @@ export function TimesheetScreen() {
               </View>
             ) : null}
           </View>
-          {realMode ? (
-            <AppText variant="sub">{t('timesheets.bePending')}</AppText>
-          ) : openSession ? (
+          {openSession ? (
             <Button
               label={t('timesheets.checkOutAction')}
               variant="danger"
               onPress={onCheckOut}
               loading={checkOut.isPending}
             />
+          ) : pendingRequest ? (
+            <>
+              <AppText variant="sub">{t('tasks.workPendingApproval')}</AppText>
+              <Button
+                label={t('tasks.cancelCheckIn')}
+                variant="outline"
+                onPress={onCancelRequest}
+                loading={cancelRequest.isPending}
+              />
+            </>
+          ) : startableTask ? (
+            <>
+              <AppText variant="sub">{t('timesheets.checkInTask', { name: startableTask.title })}</AppText>
+              <Button
+                label={t('timesheets.checkInAction')}
+                onPress={onCheckIn}
+                loading={checkIn.isPending}
+              />
+            </>
           ) : (
-            <Button
-              label={t('timesheets.checkInAction')}
-              onPress={onCheckIn}
-              loading={checkIn.isPending}
-            />
+            <AppText variant="sub">{t('timesheets.checkInNoTask')}</AppText>
           )}
         </Card>
 

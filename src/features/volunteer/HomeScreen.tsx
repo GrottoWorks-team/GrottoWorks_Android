@@ -1,7 +1,7 @@
 // Trang chủ TNV: giờ đóng góp (nổi bật), lời mời đang chờ, đơn đăng ký của tôi,
 // gợi ý task đang tuyển, nhiệm vụ đang làm.
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import type { CompositeNavigationProp } from '@react-navigation/native';
@@ -16,6 +16,7 @@ import { ScreenHeader } from '../../components/ScreenHeader';
 import { useAuth } from '../../auth/AuthContext';
 import { myAssignmentStatus } from '../../api';
 import { useAreas, useMyRegs, useMyTasks, useMyTimesheets, useOpenTasks, useTask } from '../../api/hooks';
+import { useRefreshControl } from '../../lib/useRefreshControl';
 import { skillMatchScore } from '../../types';
 import type { VolunteerReg } from '../../types';
 import { colors, fontSize, spacing } from '../../theme/tokens';
@@ -33,11 +34,23 @@ export function HomeScreen() {
   const { user } = useAuth();
   const navigation = useNavigation<Nav>();
   const volunteerId = user?.id ?? '';
-  const { data: tasks = [] } = useMyTasks(volunteerId);
-  const { data: timesheets = [] } = useMyTimesheets(volunteerId);
-  const { data: regs = [] } = useMyRegs(volunteerId);
-  const { data: openTasks = [] } = useOpenTasks(volunteerId);
-  const { data: areas = [] } = useAreas();
+  const tasksQuery = useMyTasks(volunteerId);
+  const { data: tasks = [] } = tasksQuery;
+  const timesheetsQuery = useMyTimesheets(volunteerId);
+  const { data: timesheets = [] } = timesheetsQuery;
+  const regsQuery = useMyRegs(volunteerId);
+  const { data: regs = [] } = regsQuery;
+  const openTasksQuery = useOpenTasks(volunteerId);
+  const { data: openTasks = [] } = openTasksQuery;
+  const areasQuery = useAreas();
+  const { data: areas = [] } = areasQuery;
+  const refresh = useRefreshControl([
+    tasksQuery.refetch,
+    timesheetsQuery.refetch,
+    regsQuery.refetch,
+    openTasksQuery.refetch,
+    areasQuery.refetch,
+  ]);
 
   const areaName = (id: string) => areas.find((a) => a.id === id)?.name ?? '—';
   const pendingInvites = tasks.filter((task) => myAssignmentStatus(task, volunteerId) === 'PENDING');
@@ -60,7 +73,10 @@ export function HomeScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        refreshControl={<RefreshControl {...refresh} />}
+      >
         <ScreenHeader
           title={t('home.greeting', { name: user?.name ?? '' })}
           sub={t('app.parish')}

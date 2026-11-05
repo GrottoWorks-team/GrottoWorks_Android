@@ -56,6 +56,10 @@ export interface Task {
   id: string; areaId: string; title: string; description: string; skills: string[];
   estimateHours: number; volunteersNeeded: number; assignees: string[]; materialIds: string[];
   status: 'DRAFT' | 'TODO' | 'DOING' | 'REVIEW' | 'DONE' | 'REVISE'; dueDate: string;
+  /** Trạng thái gốc của TaskExecution (OPEN | NOT_STARTED | IN_PROGRESS | …). */
+  backendStatus?: string;
+  /** Ngày bắt đầu dự kiến (`TaskDto.startAt`) — việc `IN_PROGRESS` khi leader duyệt check-in. */
+  startAt?: string | null;
   submittedPhotos: number; submittedNotes?: string;
   /** URI ảnh minh chứng TNV gửi kèm khi nộp duyệt hoàn thành (bắt buộc ≥1). */
   submittedPhotoUris?: string[];
@@ -70,6 +74,8 @@ export interface TaskAssignment {
   volunteerId: string;
   status: 'PENDING' | 'ACCEPTED' | 'DECLINED';
   note?: string;
+  /** `task_assignment_id` của BE — cần để gọi accept/decline (`GET /users/me/assignments`). */
+  assignmentId?: string;
 }
 
 // Đăng ký tình nguyện: TNV chủ động gửi lên, leader duyệt/từ chối.
@@ -159,6 +165,19 @@ export interface Timesheet {
   checkInAt?: string; checkOutAt?: string;
   /** `version` của bản ghi chấm công — BE đòi khi tạo yêu cầu chỉnh giờ. */
   version?: number;
+  /** `task_assignment_id` của phiên — BE đòi khi check-out (`POST /task-assignments/{id}/attendance/check-out`). */
+  assignmentId?: string;
+}
+
+/** Đơn xin vào ca của chính TNV (`GET /users/me/attendance-requests`). */
+export interface AttendanceRequestItem {
+  id: string;
+  assignmentId: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  requestedAt: string;
+  note?: string | null;
+  /** `version` để huỷ đơn (`If-Match`). */
+  version: number;
 }
 
 export interface SupportRequest {

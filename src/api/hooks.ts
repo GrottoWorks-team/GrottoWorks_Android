@@ -1,6 +1,7 @@
 // React Query hooks cho mobile — đồng bộ pattern với webapp (queryKey + invalidate).
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  cancelAttendanceRequest,
   cancelRegistration,
   checkIn,
   checkOut,
@@ -12,6 +13,7 @@ import {
   listCommunities,
   listContributionNeeds,
   listMaterials,
+  listMyAttendanceRequests,
   listMyContributions,
   listMyRegs,
   listMyTasks,
@@ -41,6 +43,7 @@ export const keys = {
   myRegs: (volunteerId: string) => ['myRegs', volunteerId] as const,
   myReg: (taskId: string, volunteerId: string) => ['myReg', taskId, volunteerId] as const,
   timesheets: (volunteerId: string) => ['timesheets', volunteerId] as const,
+  attendanceRequests: (volunteerId: string) => ['attendanceRequests', volunteerId] as const,
   activity: ['activity'] as const,
   areas: ['areas'] as const,
   materials: ['materials'] as const,
@@ -88,6 +91,9 @@ export const useMyTasks = (volunteerId: string) =>
     queryKey: keys.tasks(volunteerId),
     queryFn: () => listMyTasks(volunteerId),
     enabled: Boolean(volunteerId),
+    // Trạng thái việc đổi từ phía leader (phát hành/duyệt check-in) → luôn làm mới
+    // khi mở lại màn hình thay vì dùng cache 30s.
+    staleTime: 0,
   });
 
 export const useOpenTasks = (volunteerId: string) =>
@@ -95,10 +101,16 @@ export const useOpenTasks = (volunteerId: string) =>
     queryKey: keys.openTasks(volunteerId),
     queryFn: () => listOpenTasks(volunteerId),
     enabled: Boolean(volunteerId),
+    staleTime: 0,
   });
 
 export const useTask = (id: string) =>
-  useQuery({ queryKey: keys.task(id), queryFn: () => getTask(id), enabled: Boolean(id) });
+  useQuery({
+    queryKey: keys.task(id),
+    queryFn: () => getTask(id),
+    enabled: Boolean(id),
+    staleTime: 0,
+  });
 
 /** Lịch sử tiến độ/nghiệm thu của task (BE `GET /tasks/{id}/progress`). */
 export const useTaskProgress = (id: string) =>
@@ -122,11 +134,23 @@ export const useMyReg = (taskId: string, volunteerId: string) =>
     enabled: Boolean(taskId) && Boolean(volunteerId),
   });
 
-export const useMyTimesheets = (volunteerId: string) =>
-  useQuery({
+export const useMyTimesheets = (volunteerId: string) => useQuery({
     queryKey: keys.timesheets(volunteerId),
     queryFn: () => listMyTimesheets(volunteerId),
     enabled: Boolean(volunteerId),
+    staleTime: 0,
+  });
+
+/**
+ * Đơn vào ca đang chờ duyệt của chính TNV (`GET /users/me/attendance-requests`).
+ * Dùng để nhiệm vụ hiển thị "chờ trưởng khu duyệt" thay vì mãi là "Chưa bắt đầu".
+ */
+export const useMyAttendanceRequests = (volunteerId: string) =>
+  useQuery({
+    queryKey: keys.attendanceRequests(volunteerId),
+    queryFn: () => listMyAttendanceRequests('PENDING'),
+    enabled: Boolean(volunteerId),
+    staleTime: 0,
   });
 
 export const useActivity = () => useQuery({ queryKey: keys.activity, queryFn: listActivity });
@@ -199,13 +223,36 @@ export function useSubmitReview(volunteerId: string, taskId: string) {
   });
 }
 
+export interface CheckInArgs {
+  /** Việc muốn vào ca — BE cần để tra `assignmentId` (`GET /users/me/assignments`). */
+  taskId?: string;
+  note?: string;
+}
+
+export function useCancelAttendanceRequest(volunteerId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ requestId, version }: { requestId: string; version: number }) =>
+      cancelAttendanceRequest(requestId, version),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: keys.attendanceRequests(volunteerId) });
+      void qc.invalidateQueries({ queryKey: keys.timesheets(volunteerId) });
+      invalidateTaskData(qc, volunteerId);
+    },
+  });
+}
+
 export function useCheckIn(volunteerId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => checkIn(volunteerId),
-    onSuccess: () => {
+    mutationFn: ({ taskId, note }: CheckInArgs = {}) => checkIn(volunteerId, taskId, note),
+    onSuccess: (_result, vars) => {
       void qc.invalidateQueries({ queryKey: keys.timesheets(volunteerId) });
+      void qc.invalidateQueries({ queryKey: keys.attendanceRequests(volunteerId) });
       void qc.invalidateQueries({ queryKey: keys.activity });
+      // Việc có thể chuyển IN_PROGRESS sau khi trưởng khu duyệt → làm mới danh sách.
+      invalidateTaskData(qc, volunteerId);
+      if (vars?.taskId) void qc.invalidateQueries({ queryKey: keys.task(vars.taskId) });
     },
   });
 }
@@ -216,7 +263,9 @@ export function useCheckOut(volunteerId: string) {
     mutationFn: () => checkOut(volunteerId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: keys.timesheets(volunteerId) });
+      void qc.invalidateQueries({ queryKey: keys.attendanceRequests(volunteerId) });
       void qc.invalidateQueries({ queryKey: keys.activity });
+      invalidateTaskData(qc, volunteerId);
     },
   });
 }

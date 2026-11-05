@@ -1,6 +1,6 @@
 // Toast đơn giản cho mobile: provider + hook useToast, hiển thị ở đáy màn hình.
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
-import { Animated, StyleSheet, useAnimatedValue, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 import type { ReactNode } from 'react';
 import { AppText } from './AppText';
 import { colors, radius, spacing } from '../theme/tokens';
@@ -10,21 +10,23 @@ interface ToastValue {
   toast: (message: string, kind?: Kind) => void;
 }
 const ToastContext = createContext<ToastValue | null>(null);
+// react-native-web không có native animated module nên phải dùng JS driver.
+const useNativeDriver = Platform.OS !== 'web';
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [message, setMessage] = useState<string | null>(null);
   const [kind, setKind] = useState<Kind>('info');
-  const opacity = useAnimatedValue(0);
+  const [opacity] = useState(() => new Animated.Value(0));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const toast = useCallback(
     (msg: string, k: Kind = 'info') => {
       setMessage(msg);
       setKind(k);
-      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver }).start();
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => {
-        Animated.timing(opacity, { toValue: 0, duration: 220, useNativeDriver: true }).start(
+        Animated.timing(opacity, { toValue: 0, duration: 220, useNativeDriver }).start(
           () => setMessage(null),
         );
       }, 2600);
