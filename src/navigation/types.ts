@@ -6,15 +6,22 @@ export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
 };
 
-// 5 tab, Trang chủ nằm chính giữa: Nhiệm vụ · Giờ đóng góp · Trang chủ · Thông báo · Hồ sơ.
+// 6 tab: Nhiệm vụ · Khu vực · Trang chủ · Giờ đóng góp · Thông báo · Hồ sơ.
 // Tab Nhiệm vụ chứa stack lồng → khai báo NavigatorScreenParams để điều hướng
-// tới TaskDetail/OpenDetail từ tab khác (ví dụ Trang chủ).
+// tới TaskDetail/OpenDetail từ tab khác (ví dụ Trang chủ, Khu vực).
 export type MainTabParamList = {
   Tasks: NavigatorScreenParams<TasksStackParamList>;
+  Areas: NavigatorScreenParams<AreasStackParamList>;
   Timesheets: undefined;
   Home: undefined;
   Notifications: undefined;
   Profile: NavigatorScreenParams<ProfileStackParamList>;
+};
+
+// Stack lồng trong tab Khu vực: danh sách → chi tiết (read-only).
+export type AreasStackParamList = {
+  AreaList: undefined;
+  AreaDetail: { areaId: string };
 };
 
 // Stack lồng trong tab Nhiệm vụ: danh sách (2 sub-tab: việc của tôi / đang
@@ -23,6 +30,8 @@ export type TasksStackParamList = {
   TaskList: undefined;
   TaskDetail: { taskId: string };
   OpenDetail: { taskId: string };
+  /** Mô hình 3D của khu vực (TNV xem lớp thi công gắn với nhiệm vụ đã nhận). */
+  TaskModel: { taskId: string; areaId: string; areaName?: string; taskTitle?: string };
 };
 
 // Stack lồng trong tab Hồ sơ: xem → chỉnh sửa / đóng góp / quyên góp / cho mượn.

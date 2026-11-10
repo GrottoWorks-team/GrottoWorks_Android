@@ -41,33 +41,6 @@ export const API_BASE = (
   process.env.EXPO_PUBLIC_API_URL ?? `${defaultHost()}/api/v1`
 ).replace(/\/+$/, '');
 
-/** Cổng dev server của webapp (Vite). */
-const WEB_PORT = 5173;
-
-function defaultWebHost(): string {
-  if (Platform.OS === 'web') return `http://localhost:${WEB_PORT}`;
-  const host = devServerHost();
-  if (host) return `http://${host}:${WEB_PORT}`;
-  return Platform.OS === 'android'
-    ? `http://10.0.2.2:${WEB_PORT}`
-    : `http://localhost:${WEB_PORT}`;
-}
-
-/**
- * Gốc URL của webapp (KHÔNG kèm `/api/v1`). Dùng cho các trang chỉ đọc mở bằng
- * trình duyệt, vd mô hình 3D của khu vực mà TNV mở từ chi tiết nhiệm vụ:
- *
- *   EXPO_PUBLIC_WEB_URL=https://app.grottoworks.vn npx expo start
- *
- * Không đặt biến này thì suy ra từ host Metro như `API_BASE` (cùng máy dev).
- */
-export const WEB_BASE = (process.env.EXPO_PUBLIC_WEB_URL ?? defaultWebHost()).replace(/\/+$/, '');
-
-/** Ghép URL webapp từ path (bắt đầu bằng `/`). */
-export function webUrl(path: string): string {
-  return `${WEB_BASE}${path.startsWith('/') ? path : `/${path}`}`;
-}
-
 const TOKEN_KEY = 'grotto-mobile-tokens-v1';
 
 export interface TokenPair {

@@ -1,9 +1,10 @@
 // Chi tiết nhiệm vụ (TNV): info + tiêu chí hoàn thành + kỹ năng + vật tư,
 // và hành động theo trạng thái phân công của chính TNV (nhận/từ chối/gửi duyệt).
 import { useState } from 'react';
-import { Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { Screen } from '../../components/Screen';
 import { AppText } from '../../components/AppText';
@@ -14,7 +15,6 @@ import { StatusTag } from '../../components/StatusTag';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../auth/AuthContext';
 import { isRealApiActive, myAssignmentStatus, ApiError } from '../../api';
-import { webUrl } from '../../api/client';
 import {
   useAreas,
   useCancelAttendanceRequest,
@@ -33,12 +33,14 @@ import { colors, radius, spacing } from '../../theme/tokens';
 import type { TasksStackParamList } from '../../navigation/types';
 
 type DetailRoute = RouteProp<TasksStackParamList, 'TaskDetail'>;
+type DetailNav = NativeStackNavigationProp<TasksStackParamList, 'TaskDetail'>;
 
 export function TaskDetailScreen() {
   const { t } = useTranslation();
   const toast = useToast();
   const { user } = useAuth();
   const { params } = useRoute<DetailRoute>();
+  const navigation = useNavigation<DetailNav>();
   const volunteerId = user?.id ?? '';
 
   const taskQuery = useTask(params.taskId);
@@ -233,28 +235,22 @@ export function TaskDetailScreen() {
         </Card>
 
         {/* Mô hình 3D của khu vực — TNV xem mô hình + lớp thi công gắn với nhiệm vụ
-            đã nhận. BE chưa có API mô hình (TODO: design-scene), nên app mở trang
-            chỉ đọc của webapp trong trình duyệt. */}
+            đã nhận. Mở MÀN HÌNH TRONG APP (không nhảy ra trình duyệt). Dữ liệu
+            hiện là scene mock vì BE chưa có API mô hình 3D. */}
         {myStatus === 'ACCEPTED' && task.areaId ? (
           <Card style={styles.card}>
             <AppText variant="label">{t('tasks.model3dTitle')}</AppText>
             <AppText variant="sub">{t('tasks.model3dHint')}</AppText>
             <Button
               label={t('tasks.model3dOpen')}
-              onPress={() => {
-                const query = [
-                  `task=${encodeURIComponent(task.id)}`,
-                  area?.name ? `name=${encodeURIComponent(area.name)}` : '',
-                ]
-                  .filter(Boolean)
-                  .join('&');
-                const url = webUrl(
-                  `/share/scene/${encodeURIComponent(task.areaId ?? '')}?${query}`,
-                );
-                void Linking.openURL(url).catch(() =>
-                  toast(t('common.error'), 'alert'),
-                );
-              }}
+              onPress={() =>
+                navigation.navigate('TaskModel', {
+                  taskId: task.id,
+                  areaId: task.areaId ?? '',
+                  areaName: area?.name,
+                  taskTitle: task.title,
+                })
+              }
             />
           </Card>
         ) : null}

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { TaskListScreen } from '../features/volunteer/TaskListScreen';
 import { TaskDetailScreen } from '../features/volunteer/TaskDetailScreen';
 import { OpenTaskDetailScreen } from '../features/volunteer/OpenTaskDetailScreen';
+import { TaskModelScreen } from '../features/volunteer/TaskModelScreen';
 import { colors } from '../theme/tokens';
 import type { TasksStackParamList } from './types';
 
@@ -31,6 +32,11 @@ export function TasksNavigator() {
         name="OpenDetail"
         component={OpenTaskDetailScreen}
         options={{ title: t('open.detail') }}
+      />
+      <Stack.Screen
+        name="TaskModel"
+        component={TaskModelScreen}
+        options={{ title: t('tasks.model3dTitle') }}
       />
     </Stack.Navigator>
   );
