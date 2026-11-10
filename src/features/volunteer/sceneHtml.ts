@@ -1,21 +1,19 @@
-// Sinh HTML + JS vẽ mô hình 3D (phối cảnh trục đo) để nhúng vào WebView.
+// Sinh HTML + JS vẽ MỘT LỚP thi công (phối cảnh trục đo) để nhúng vào WebView.
+//
+// Phạm vi: TNV chỉ cần xem LỚP được gắn với nhiệm vụ mình đã nhận — không cần
+// xem toàn bộ công trình. Vì vậy scene truyền vào đây đã được lọc sẵn (chỉ layer
+// + item của nhiệm vụ). Không có "tách lớp" vì chỉ còn 1 lớp.
 //
 // Vì sao canvas 2D thay vì three.js: app Expo chưa có `three`/`expo-gl`; canvas
-// 2D + phép chiếu phối cảnh đủ để demo mô hình (xoay, tách lớp, tô sáng lớp của
-// tôi) mà KHÔNG cần thêm thư viện nặng, chạy offline và ổn định trên Expo Go.
-// Khi BE có `design-scene` + model thật (`.glb`) sẽ thay bằng WebView + GLTFLoader
-// hoặc renderer native.
-import { taskLayerIds } from './mockScene'
+// 2D + phép chiếu đủ để demo (xoay được) mà không thêm thư viện nặng, chạy
+// offline và ổn định trên Expo Go. Khi BE có `design-scene` + model `.glb` thật
+// sẽ thay bằng WebView + GLTFLoader hoặc renderer native.
 import type { MockScene } from './mockScene'
 
-/** Chiều cao nâng mỗi lớp khi "tách lớp" (mét). */
-const EXPLODE_STEP = 1.4
-
-export function buildSceneHtml(scene: MockScene, taskId?: string): string {
-  const highlight = taskId && taskLayerIds(scene, taskId).length > 0 ? taskId : null
-  // Chỉ đưa dữ liệu cần vẽ sang WebView (không đưa nameKey/taskIds thừa).
+export function buildSceneHtml(scene: MockScene): string {
+  // Chỉ đưa dữ liệu cần vẽ sang WebView.
   const payload = {
-    layers: scene.layers.map((l) => ({ id: l.id, order: l.order, taskIds: l.taskIds })),
+    layers: scene.layers.map((l) => ({ id: l.id, order: l.order })),
     items: scene.items.map((i) => ({
       id: i.id,
       layerId: i.layerId,
@@ -36,14 +34,12 @@ export function buildSceneHtml(scene: MockScene, taskId?: string): string {
 <script>
 (function () {
   var SCENE = ${JSON.stringify(payload)};
-  var HIGHLIGHT = ${JSON.stringify(highlight)};
-  var STEP = ${EXPLODE_STEP};
   var PITCH = 0.62;
   var DEFAULT_YAW = 0.62;
 
   var canvas = document.getElementById('c');
   var ctx = canvas.getContext('2d');
-  var W = 1, H = 1, yaw = DEFAULT_YAW, explode = 0, dragging = null;
+  var W = 1, H = 1, yaw = DEFAULT_YAW, dragging = null;
 
   function shade(hex, f) {
     var r = parseInt(hex.slice(1, 3), 16);
@@ -64,7 +60,7 @@ export function buildSceneHtml(scene: MockScene, taskId?: string): string {
   }
 
   function drawGround(scale, cx, baseY) {
-    var g = 6.4;
+    var g = 4.2;
     var pts = [[-g, 0, -g], [g, 0, -g], [g, 0, g], [-g, 0, g]].map(function (p) {
       return project(p[0], p[1], p[2], scale, cx, baseY);
     });
@@ -81,31 +77,22 @@ export function buildSceneHtml(scene: MockScene, taskId?: string): string {
 
   function draw() {
     ctx.clearRect(0, 0, W, H);
-    var scale = Math.min(W, H) / 8.6;
+    var scale = Math.min(W, H) / 6.2;
     var cx = W / 2;
-    var baseY = H * 0.82;
+    var baseY = H * 0.8;
     drawGround(scale, cx, baseY);
-
-    var layerOrder = {};
-    var myLayers = {};
-    SCENE.layers.forEach(function (l) {
-      layerOrder[l.id] = l.order;
-      myLayers[l.id] = HIGHLIGHT ? l.taskIds.indexOf(HIGHLIGHT) >= 0 : false;
-    });
 
     var faces = [];
     SCENE.items.forEach(function (it) {
-      var lift = (layerOrder[it.layerId] || 0) * explode * STEP;
       var hx = it.size[0] / 2, hz = it.size[2] / 2;
       var x0 = it.position[0] - hx, x1 = it.position[0] + hx;
-      var y0 = it.position[1] + lift, y1 = it.position[1] + it.size[1] + lift;
+      var y0 = it.position[1], y1 = it.position[1] + it.size[1];
       var z0 = it.position[2] - hz, z1 = it.position[2] + hz;
       var v = [
         [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1],
         [x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]
       ].map(function (p) { return project(p[0], p[1], p[2], scale, cx, baseY); });
 
-      var mine = myLayers[it.layerId];
       var defs = [
         { idx: [4, 5, 6, 7], f: 1.0 },
         { idx: [1, 2, 6, 5], f: 0.82 },
@@ -119,8 +106,8 @@ export function buildSceneHtml(scene: MockScene, taskId?: string): string {
         faces.push({
           pts: pts,
           fill: shade(it.color, d.f),
-          stroke: mine ? '#C8A24A' : 'rgba(43,45,66,0.16)',
-          lw: mine ? 2 : 1,
+          stroke: 'rgba(43,45,66,0.22)',
+          lw: 1,
           depth: (pts[0][2] + pts[1][2] + pts[2][2] + pts[3][2]) / 4
         });
       });
@@ -167,8 +154,7 @@ export function buildSceneHtml(scene: MockScene, taskId?: string): string {
   canvas.addEventListener('pointerup', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
 
-  window.__setExplode = function (v) { explode = Math.max(0, Math.min(1, Number(v) || 0)); draw(); };
-  window.__resetView = function () { yaw = DEFAULT_YAW; explode = 0; draw(); };
+  window.__resetView = function () { yaw = DEFAULT_YAW; draw(); };
   window.addEventListener('resize', resize);
 
   resize();
