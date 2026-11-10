@@ -1,7 +1,7 @@
 // Chi tiết nhiệm vụ (TNV): info + tiêu chí hoàn thành + kỹ năng + vật tư,
 // và hành động theo trạng thái phân công của chính TNV (nhận/từ chối/gửi duyệt).
 import { useState } from 'react';
-import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -14,6 +14,7 @@ import { StatusTag } from '../../components/StatusTag';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../auth/AuthContext';
 import { isRealApiActive, myAssignmentStatus, ApiError } from '../../api';
+import { webUrl } from '../../api/client';
 import {
   useAreas,
   useCancelAttendanceRequest,
@@ -230,6 +231,33 @@ export function TaskDetailScreen() {
           />
           <Field label={t('tasks.dueDate')} value={task.dueDate} />
         </Card>
+
+        {/* Mô hình 3D của khu vực — TNV xem mô hình + lớp thi công gắn với nhiệm vụ
+            đã nhận. BE chưa có API mô hình (TODO: design-scene), nên app mở trang
+            chỉ đọc của webapp trong trình duyệt. */}
+        {myStatus === 'ACCEPTED' && task.areaId ? (
+          <Card style={styles.card}>
+            <AppText variant="label">{t('tasks.model3dTitle')}</AppText>
+            <AppText variant="sub">{t('tasks.model3dHint')}</AppText>
+            <Button
+              label={t('tasks.model3dOpen')}
+              onPress={() => {
+                const query = [
+                  `task=${encodeURIComponent(task.id)}`,
+                  area?.name ? `name=${encodeURIComponent(area.name)}` : '',
+                ]
+                  .filter(Boolean)
+                  .join('&');
+                const url = webUrl(
+                  `/share/scene/${encodeURIComponent(task.areaId ?? '')}?${query}`,
+                );
+                void Linking.openURL(url).catch(() =>
+                  toast(t('common.error'), 'alert'),
+                );
+              }}
+            />
+          </Card>
+        ) : null}
 
         {task.completionCriteria ? (
           <Card style={styles.card}>
