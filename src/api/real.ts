@@ -320,6 +320,8 @@ export interface TaskDto {
   version: number;
   createdAt: string;
   updatedAt?: string | null;
+  /** Assignment đang được chỉ định làm trưởng nhóm nhiệm vụ (null nếu chưa chọn). */
+  teamLeaderAssignmentId?: string | null;
   /** Yêu cầu kỹ năng/vật tư (BE trả kèm từ 05/11). */
   skills?: { skillId: string; requiredSkillLevel?: string | null; requiredVolunteerCount?: number | null }[];
   materials?: { materialId: string; requiredQuantity: number; note?: string | null }[];
@@ -432,6 +434,7 @@ export function toTask(dto: TaskDto): Task {
     startAt: dto.startAt ?? null,
     dueDate: (dto.deadline ?? '').slice(0, 10),
     submittedPhotos: 0,
+    teamLeaderAssignmentId: dto.teamLeaderAssignmentId ?? null,
     ...(dto.completionCriteria ? { completionCriteria: dto.completionCriteria } : {}),
   };
 }

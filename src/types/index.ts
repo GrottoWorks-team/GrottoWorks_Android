@@ -71,6 +71,8 @@ export interface Task {
   assignments?: TaskAssignment[];
   /** Những TNV đang có đơn đăng ký (PENDING) — dùng để khóa nút "Đăng ký". */
   pendingRegVolunteerIds?: string[];
+  /** Assignment được chỉ định làm trưởng nhóm (BE `TaskDto.teamLeaderAssignmentId`). */
+  teamLeaderAssignmentId?: string | null;
 }
 
 export interface TaskAssignment {

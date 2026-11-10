@@ -102,6 +102,16 @@ export function TaskDetailScreen() {
 
   const area = areas.find((a) => a.id === task.areaId);
   const myStatus = myAssignmentStatus(task, volunteerId);
+  // Trưởng nhóm nhiệm vụ: BE trả `teamLeaderAssignmentId`; so với assignment của chính TNV.
+  const hasTeamLeader = Boolean(task.teamLeaderAssignmentId);
+  const isTeamLeader = Boolean(
+    hasTeamLeader &&
+      task.assignments?.some(
+        (row) =>
+          row.volunteerId === volunteerId &&
+          row.assignmentId === task.teamLeaderAssignmentId,
+      ),
+  );
   const taskMaterials = materials.filter((m) => task.materialIds.includes(m.id));
 
   const onAccept = async () => {
@@ -206,7 +216,9 @@ export function TaskDetailScreen() {
   };
 
   const canSubmitReview =
-    myStatus === 'ACCEPTED' && (task.status === 'DOING' || task.status === 'REVISE');
+    myStatus === 'ACCEPTED' &&
+    (task.status === 'DOING' || task.status === 'REVISE') &&
+    (!hasTeamLeader || isTeamLeader);
 
   return (
     <Screen>
@@ -216,7 +228,16 @@ export function TaskDetailScreen() {
       >
         <View style={styles.titleBlock}>
           <AppText variant="h1">{task.title}</AppText>
-          <StatusTag status={task.status} />
+          <View style={styles.titleTags}>
+            <StatusTag status={task.status} />
+            {isTeamLeader ? (
+              <View style={styles.leaderBadge}>
+                <AppText variant="label" color={colors.pine}>
+                  {t('tasks.teamLeaderBadge')}
+                </AppText>
+              </View>
+            ) : null}
+          </View>
         </View>
 
         <Card style={styles.card}>
@@ -360,6 +381,14 @@ export function TaskDetailScreen() {
             style={styles.card}
           />
         )}
+
+        {/* Task đã có trưởng nhóm → TNV khác vẫn xem/ vào ca nhưng không nộp tiến độ. */}
+        {hasTeamLeader && !isTeamLeader && myStatus === 'ACCEPTED' ? (
+          <Card style={styles.card}>
+            <AppText variant="label">{t('tasks.teamLeaderOnlyTitle')}</AppText>
+            <AppText variant="sub">{t('tasks.teamLeaderOnlyHint')}</AppText>
+          </Card>
+        ) : null}
 
         {/* BE chưa trả assignmentId → chỉ nhận/từ chối phân công là chưa làm được
             trên app; ghi chú rõ thay vì giả lập thành công. */}
@@ -520,6 +549,15 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: spacing.lg, gap: spacing.md },
   titleBlock: { gap: spacing.sm },
+  titleTags: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
+  leaderBadge: {
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.gold,
+    backgroundColor: colors.goldLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 2,
+  },
   card: { gap: spacing.sm },
   body: { marginTop: spacing.xs },
   field: { gap: 2 },
