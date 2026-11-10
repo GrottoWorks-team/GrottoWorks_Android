@@ -29,6 +29,7 @@ import {
   myRecognitionReal,
   myTasksReal,
   notificationsReal,
+  notificationPreferencesReal,
   offerLoanReal,
   openSessionReal,
   openTasksReal,
@@ -44,6 +45,7 @@ import {
   submitTaskReviewReal,
   taskDetailReal,
   taskProgressReal,
+  updateNotificationPreferencesReal,
   updateProfileReal,
 } from './real';
 import { listApplications, upsertApplication } from './applicationsCache';
@@ -405,6 +407,23 @@ export async function markNotificationRead(id: string): Promise<void> {
 
 export async function markAllNotificationsRead(): Promise<void> {
   await markAllNotificationsReadReal();
+}
+
+/** Tuỳ chọn nhận thông báo: `GET/PUT /api/v1/users/me/notification-preferences`. */
+export interface NotificationPreferences {
+  inAppEnabled: boolean;
+  pushEnabled: boolean;
+  emailEnabled: boolean;
+}
+
+export async function getNotificationPreferences(): Promise<NotificationPreferences> {
+  return notificationPreferencesReal();
+}
+
+export async function updateNotificationPreferences(
+  payload: NotificationPreferences,
+): Promise<NotificationPreferences> {
+  return updateNotificationPreferencesReal(payload);
 }
 
 // ── Điểm ghi nhận ────────────────────────────────────────────────────────────

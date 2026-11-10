@@ -6,6 +6,7 @@ import { ProfileEditScreen } from '../features/volunteer/profile/ProfileEditScre
 import { MyContributionsScreen } from '../features/volunteer/profile/MyContributionsScreen';
 import { PledgeScreen } from '../features/volunteer/profile/PledgeScreen';
 import { LoanOfferScreen } from '../features/volunteer/profile/LoanOfferScreen';
+import { NotificationSettingsScreen } from '../features/volunteer/profile/NotificationSettingsScreen';
 import { colors } from '../theme/tokens';
 import type { ProfileStackParamList } from './types';
 
@@ -46,6 +47,11 @@ export function ProfileNavigator() {
         name="LoanOffer"
         component={LoanOfferScreen}
         options={{ title: t('loan.title') }}
+      />
+      <Stack.Screen
+        name="NotificationSettings"
+        component={NotificationSettingsScreen}
+        options={{ title: t('notifications.prefs') }}
       />
     </Stack.Navigator>
   );

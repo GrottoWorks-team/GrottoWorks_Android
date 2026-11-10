@@ -41,6 +41,7 @@ export type ProfileStackParamList = {
   MyContributions: undefined;
   Pledge: undefined;
   LoanOffer: undefined;
+  NotificationSettings: undefined;
 };
 
 declare global {

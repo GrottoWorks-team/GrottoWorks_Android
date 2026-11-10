@@ -137,6 +137,16 @@ export function ProfileViewScreen() {
           />
         </Card>
 
+        {/* Cài đặt thông báo — BE đã có `users/me/notification-preferences` */}
+        <Card style={styles.card}>
+          <AppText variant="label">{t('profile.settings')}</AppText>
+          <Button
+            label={t('notifications.prefs')}
+            variant="outline"
+            onPress={() => navigation.navigate('NotificationSettings')}
+          />
+        </Card>
+
         {/* Phiên bản ứng dụng */}
         <Card style={styles.card}>
           <AppText variant="label">{t('profile.about')}</AppText>

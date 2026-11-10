@@ -243,6 +243,15 @@
   "notifications.minAgo": "{{n}} phút trước",
   "notifications.hourAgo": "{{n}} giờ trước",
   "notifications.dayAgo": "{{n}} ngày trước",
+  "notifications.prefs": "Tuỳ chọn thông báo",
+  "notifications.prefInApp": "Thông báo trong ứng dụng",
+  "notifications.prefInAppHint": "Hiện thông báo ở mục Thông báo khi bạn mở app.",
+  "notifications.prefPush": "Thông báo đẩy (push)",
+  "notifications.prefPushHint": "Nhận thông báo trên điện thoại khi app đóng.",
+  "notifications.prefEmail": "Thông báo qua email",
+  "notifications.prefEmailHint": "Gửi bản sao thông báo tới email đăng ký.",
+  "notifications.prefsSaved": "Đã lưu tuỳ chọn thông báo",
+  "notifications.prefsHint": "Thay đổi áp dụng cho tài khoản của bạn trên mọi thiết bị.",
 
   "profile.title": "Hồ sơ cá nhân",
   "profile.name": "Họ tên",
@@ -282,6 +291,7 @@
   "profile.communityHint": "Chọn giáo khu bạn đang sinh hoạt",
   "profile.communityRequired": "Cần chọn giáo khu trước khi lưu giới thiệu",
   "profile.noCommunities": "Chưa có giáo khu nào trong giáo xứ",
+  "profile.settings": "Cài đặt",
 
   "pledge.title": "Quyên góp",
   "pledge.sub": "Cam kết vật tư hoặc tiền cho nhu cầu đang thiếu",

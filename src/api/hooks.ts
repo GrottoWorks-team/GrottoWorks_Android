@@ -8,6 +8,7 @@ import {
   checkOut,
   getMyRecognition,
   getMyReg,
+  getNotificationPreferences,
   getTask,
   listAreas,
   listCommunities,
@@ -31,6 +32,7 @@ import {
   requestCorrection,
   respondAssignment,
   submitReview,
+  updateNotificationPreferences,
   updateUser,
 } from '../api';
 import type { PledgeMaterialInput, ProfilePatch } from '../api';
@@ -49,6 +51,7 @@ export const keys = {
   materials: ['materials'] as const,
   skills: ['skills'] as const,
   notifications: ['notifications'] as const,
+  notificationPreferences: ['notification-preferences'] as const,
   recognition: (volunteerId: string) => ['recognition', volunteerId] as const,
   contributions: (volunteerId: string) => ['contributions', volunteerId] as const,
   contributionNeeds: ['contributionNeeds'] as const,
@@ -75,6 +78,24 @@ export const useSkills = () => useQuery({ queryKey: keys.skills, queryFn: listSk
 
 export const useNotifications = () =>
   useQuery({ queryKey: keys.notifications, queryFn: listNotifications });
+
+/** Tuỳ chọn nhận thông báo (in-app / push / email) — BE `users/me/notification-preferences`. */
+export const useNotificationPreferences = () =>
+  useQuery({
+    queryKey: keys.notificationPreferences,
+    queryFn: getNotificationPreferences,
+    staleTime: 0,
+  });
+
+export function useUpdateNotificationPreferences() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: updateNotificationPreferences,
+    onSuccess: (next) => {
+      qc.setQueryData(keys.notificationPreferences, next);
+    },
+  });
+}
 
 export const useMyRecognition = (volunteerId: string) =>
   useQuery({

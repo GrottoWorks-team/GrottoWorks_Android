@@ -865,6 +865,28 @@ export async function markAllNotificationsReadReal(): Promise<void> {
   await http<unknown>('/notifications/read-all', { method: 'POST' });
 }
 
+/** Tuỳ chọn nhận thông báo của chính người dùng. */
+export interface NotificationPreferenceDto {
+  inAppEnabled: boolean;
+  pushEnabled: boolean;
+  emailEnabled: boolean;
+}
+
+/** GET /api/v1/users/me/notification-preferences (mọi role). */
+export async function notificationPreferencesReal(): Promise<NotificationPreferenceDto> {
+  return http<NotificationPreferenceDto>('/users/me/notification-preferences');
+}
+
+/** PUT /api/v1/users/me/notification-preferences — gửi NGUYÊN trạng thái 3 cờ. */
+export async function updateNotificationPreferencesReal(
+  payload: NotificationPreferenceDto,
+): Promise<NotificationPreferenceDto> {
+  return http<NotificationPreferenceDto>('/users/me/notification-preferences', {
+    method: 'PUT',
+    body: payload,
+  });
+}
+
 // ── Tiến độ + minh chứng (TaskExecution F-TSK-13/14 + file service) ─────────
 export interface ProgressEvidenceDto {
   fileId: string;
