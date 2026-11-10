@@ -1,4 +1,4 @@
-// HTTP client cho mobile — thay dần tầng mock bằng BE thật.
+// HTTP client cho mobile — mọi domain đều gọi BE thật (không còn tầng mock).
 //
 // Base URL: ưu tiên biến môi trường Expo `EXPO_PUBLIC_API_URL`; nếu không có thì
 // trỏ vào API Gateway (YARP) cổng 6102 của máy dev — web dùng `localhost`, còn
@@ -90,7 +90,7 @@ export class ApiError extends Error {
     this.body = body;
   }
 
-  /** true khi lỗi mạng — tầng gọi có thể rơi về dữ liệu mock. */
+  /** true khi lỗi mạng (không kết nối được BE) — UI hiển thị thông báo mất kết nối. */
   get offline(): boolean {
     return this.status === 0;
   }

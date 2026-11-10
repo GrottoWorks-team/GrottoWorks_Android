@@ -1,15 +1,19 @@
-// API tầng mobile.
+// Tầng API của app TNV — CHỈ gọi BE thật.
 //
-// - Domain BE ĐÃ CÓ → gọi BE thật qua `./real`: đăng nhập, hồ sơ cá nhân,
-//   khu vực công tác (xem `api-contracts.md` §0).
-// - Domain BE CHƯA CÓ (tasks, đăng ký TNV, giờ đóng góp, vật tư, thông báo) → vẫn
-//   mock trên AsyncStorage qua `../mocks/db`.
-// - Khi BE không chạy (gateway chưa bật) các hàm real tự rơi về mock để app vẫn
-//   demo được. CHỈ rơi khi lỗi mạng — sai mật khẩu (401) vẫn báo lỗi thật.
+// Lịch sử: trước 10/11/2026 app có "chế độ offline" fallback sang mock DB
+// (AsyncStorage + seed users/areas/tasks/timesheets/materials). BE nay đã có API
+// cho toàn bộ domain TNV dùng trên app, nên toàn bộ mock/seed đã bị loại bỏ —
+// không còn `withFallback`, `loadDb`, `logActivity`.
+//
+// Phần BE **chưa có** được xử lý minh bạch (không giả lập thành công):
+//   - Liệt kê/huỷ đơn đăng ký của chính TNV → cache cục bộ `applicationsCache`
+//     (chỉ nhớ đơn đã gửi từ máy này) + huỷ đơn ném lỗi BE_UNSUPPORTED_*.
+//   - Mô hình 3D của khu vực → scene mock riêng ở màn `TaskModelScreen`.
 import { ApiError } from './client';
 import {
   activeSeasonReal,
   applyForTaskReal,
+  areaTasksReal,
   cancelAttendanceRequestReal,
   communitiesReal,
   contributionNeedsReal,
@@ -18,6 +22,7 @@ import {
   loginReal,
   markAllNotificationsReadReal,
   markNotificationReadReal,
+  materialsReal,
   myAttendanceReal,
   myAttendanceRequestsReal,
   myContributionsReal,
@@ -27,13 +32,13 @@ import {
   offerLoanReal,
   openSessionReal,
   openTasksReal,
-  requestCheckInReal,
-  requestCheckOutReal,
   pledgeMaterialReal,
   pledgeMoneyReal,
   replaceAvailabilityReal,
   replaceSkillsReal,
   requestAttendanceCorrectionReal,
+  requestCheckInReal,
+  requestCheckOutReal,
   respondAssignmentReal,
   skillsReal,
   submitTaskReviewReal,
@@ -41,8 +46,8 @@ import {
   taskProgressReal,
   updateProfileReal,
 } from './real';
+import { listApplications, upsertApplication } from './applicationsCache';
 import type {
-  ActivityLog,
   AttendanceRequestItem,
   AvailabilitySlot,
   CommunityOption,
@@ -57,39 +62,17 @@ import type {
   VolunteerReg,
   WorkArea,
 } from '../types';
-import { SKILLS, assignmentStatus, taskAssignmentList } from '../types';
-import { loadDb, saveDb } from '../mocks/db';
-import type { Db } from '../mocks/db';
+import { assignmentStatus } from '../types';
 
 export { ApiError, API_BASE } from './client';
 
-const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
-
-/** BE không chạy → dùng seed sẵn trong app. */
-const isOffline = (err: unknown): boolean => err instanceof ApiError && err.offline;
-
-// Chế độ dữ liệu: `true` khi lần gọi gần nhất lấy được dữ liệu từ BE. Dùng để
-// ẩn những hành động BE chưa hỗ trợ thay vì giả lập thành công.
-let realApi = false;
-export const isRealApiActive = () => realApi;
-
 /**
- * Gọi BE thật; chỉ rơi về mock khi lỗi mạng (gateway tắt). Lỗi nghiệp vụ
- * (401/403/409/422…) vẫn ném ra cho UI hiển thị.
+ * App luôn chạy với BE thật (không còn chế độ offline). Giữ hàm để các màn
+ * không phải đổi điều kiện hiển thị.
  */
-async function withFallback<T>(real: () => Promise<T>, mock: () => Promise<T>): Promise<T> {
-  try {
-    const value = await real();
-    realApi = true;
-    return value;
-  } catch (err) {
-    if (!isOffline(err)) throw err;
-    realApi = false;
-    return mock();
-  }
-}
+export const isRealApiActive = () => true;
 
-// Tài khoản demo — mật khẩu chung "GxThanhTam@2026" (khớp seed BE và app offline).
+// Tài khoản seed của BE, gợi ý sẵn trên màn đăng nhập (`ACCOUNTS.md`).
 export const DEMO_PASSWORD = 'GxThanhTam@2026';
 export const DEMO_EMAILS = ['tram.do@giaoxuthanhtam.org.vn', 'bao.huynh@giaoxuthanhtam.org.vn'];
 
@@ -106,51 +89,19 @@ export function myAssignmentStatus(
   return assignmentStatus(task, volunteerId);
 }
 
-/** Đăng nhập: BE `POST /api/v1/auth/login` + `GET /api/v1/users/me`. */
+/** Đăng nhập: `POST /api/v1/auth/login` + `GET /api/v1/users/me`. */
 export async function login(email: string, password: string): Promise<SessionUser> {
   try {
-    const user = await loginReal(email, password);
-    realApi = true;
-    return user;
+    return await loginReal(email, password);
   } catch (err) {
-    if (!isOffline(err)) throw new Error('INVALID_CREDENTIALS');
-    realApi = false;
-    return mockLogin(email, password);
+    if (err instanceof ApiError && err.status === 401) throw new Error('INVALID_CREDENTIALS');
+    throw err;
   }
 }
 
-async function mockLogin(email: string, password: string): Promise<SessionUser> {
-  await delay(400);
-  const db = await loadDb();
-  const normalized = email.trim().toLowerCase();
-  const user =
-    db.users.find((u) => u.email.toLowerCase() === normalized) ?? demoMockUser(db, normalized);
-  if (!user || password !== DEMO_PASSWORD) {
-    throw new Error('INVALID_CREDENTIALS');
-  }
-  return { ...user, email: normalized };
-}
-
-/**
- * Tài khoản demo gợi ý trên màn đăng nhập là tài khoản seed của BE, không nằm
- * trong mock → map sang TNV mock cùng vai để app vẫn đăng nhập được khi Gateway
- * không chạy (offline).
- */
-function demoMockUser(db: Db, email: string): User | undefined {
-  const index = DEMO_EMAILS.indexOf(email);
-  if (index < 0) return undefined;
-  return db.users.filter((u) => u.role === 'VOLUNTEER')[index];
-}
-
-/** Hồ sơ của chính mình: BE `GET /api/v1/users/me` (bỏ qua `id` của phiên cũ). */
-export async function getUser(id: string): Promise<User> {
-  return withFallback(currentUser, async () => {
-    await delay(150);
-    const db = await loadDb();
-    const user = db.users.find((u) => u.id === id) ?? db.users[0];
-    if (!user) throw new Error('NOT_FOUND');
-    return user;
-  });
+/** Hồ sơ của chính mình: `GET /api/v1/users/me`. */
+export async function getUser(_id: string): Promise<User> {
+  return currentUser();
 }
 
 /** Trường hồ sơ TNV được sửa (khớp các endpoint Identity). */
@@ -168,142 +119,76 @@ export interface ProfilePatch {
 
 /** Cộng đoàn thuộc giáo xứ của TNV (để khai báo hồ sơ). */
 export async function listCommunities(): Promise<CommunityOption[]> {
-  return withFallback(
-    async () => {
-      const me = await currentUser();
-      return me.parishId ? communitiesReal(me.parishId) : [];
-    },
-    async () => {
-      await delay(80);
-      const db = await loadDb();
-      return db.communities.map((c) => ({ id: c.id, name: c.name }));
-    },
-  );
+  const me = await currentUser();
+  return me.parishId ? communitiesReal(me.parishId) : [];
 }
 
 /** Cập nhật hồ sơ: PATCH /users/me + PUT /users/me/skills + PUT /users/me/availability. */
-export async function updateUser(id: string, patch: ProfilePatch): Promise<User> {
-  return withFallback(
-    async () => {
-      const base = await updateProfileReal({
-        ...(patch.name !== undefined ? { name: patch.name } : {}),
-        ...(patch.phone !== undefined ? { phone: patch.phone } : {}),
-        ...(patch.introduction !== undefined ? { introduction: patch.introduction } : {}),
-        ...(patch.communityId !== undefined ? { communityId: patch.communityId } : {}),
-      });
-      if (patch.skillIds) await replaceSkillsReal(patch.skillIds);
-      if (patch.availability) await replaceAvailabilityReal(patch.availability);
-      return {
-        ...base,
-        ...(patch.skills ? { skills: patch.skills } : {}),
-        ...(patch.availability ? { availability: patch.availability } : {}),
-      };
-    },
-    async () => {
-      await delay(200);
-      const db = await loadDb();
-      const idx = db.users.findIndex((u) => u.id === id);
-      if (idx < 0) throw new Error('NOT_FOUND');
-      const { skillIds: _skillIds, ...localPatch } = patch;
-      db.users[idx] = { ...db.users[idx], ...localPatch };
-      await saveDb(db);
-      return db.users[idx];
-    },
-  );
+export async function updateUser(_id: string, patch: ProfilePatch): Promise<User> {
+  const base = await updateProfileReal({
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...(patch.phone !== undefined ? { phone: patch.phone } : {}),
+    ...(patch.introduction !== undefined ? { introduction: patch.introduction } : {}),
+    ...(patch.communityId !== undefined ? { communityId: patch.communityId } : {}),
+  });
+  if (patch.skillIds) await replaceSkillsReal(patch.skillIds);
+  if (patch.availability) await replaceAvailabilityReal(patch.availability);
+  return {
+    ...base,
+    ...(patch.skills ? { skills: patch.skills } : {}),
+    ...(patch.availability ? { availability: patch.availability } : {}),
+  };
 }
 
-/** Danh mục kỹ năng: BE `GET /skills`; offline dùng danh sách cứng của app. */
+/** Danh mục kỹ năng: `GET /skills`. */
 export async function listSkills(): Promise<Skill[]> {
-  return withFallback(skillsReal, async () => {
-    await delay(100);
-    return SKILLS.map((name, index) => ({
-      id: `mock-skill-${index}`,
-      code: `SK${index}`,
-      name,
-    }));
-  });
+  return skillsReal();
 }
 
 /** Khu vực công tác của mùa đang chạy (BE không có endpoint `/areas` phẳng). */
 export async function listAreas(): Promise<WorkArea[]> {
-  return withFallback(listAreasReal, async () => {
-    await delay(150);
-    const db = await loadDb();
-    return db.areas;
-  });
+  return listAreasReal();
 }
 
+/** Nhiệm vụ của một khu vực — `GET /work-areas/{id}/tasks`. */
+export async function areaTasks(workAreaId: string): Promise<Task[]> {
+  return areaTasksReal(workAreaId);
+}
+
+/** Danh mục vật tư — `GET /materials`. */
 export async function listMaterials() {
-  await delay(150);
-  const db = await loadDb();
-  return db.materials;
+  return materialsReal();
 }
 
-// Nhiệm vụ liên quan tới 1 TNV: BE `GET /api/v1/users/me/tasks`.
-export async function listMyTasks(volunteerId: string): Promise<Task[]> {
-  return withFallback(myTasksReal, async () => {
-    await delay(200);
-    const db = await loadDb();
-    return db.tasks.filter(
-      (t) =>
-        t.assignees.includes(volunteerId) ||
-        (t.assignments ?? []).some((a) => a.volunteerId === volunteerId),
-    );
-  });
+/** Nhiệm vụ liên quan tới 1 TNV: `GET /api/v1/users/me/tasks`. */
+export async function listMyTasks(_volunteerId: string): Promise<Task[]> {
+  return myTasksReal();
 }
 
-/** Chi tiết nhiệm vụ: BE `GET /api/v1/tasks/{id}`. */
+/** Chi tiết nhiệm vụ: `GET /api/v1/tasks/{id}`. */
 export async function getTask(id: string): Promise<Task> {
-  return withFallback(
-    () => taskDetailReal(id),
-    async () => {
-      await delay(150);
-      const db = await loadDb();
-      const task = db.tasks.find((t) => t.id === id);
-      if (!task) throw new Error('NOT_FOUND');
-      return task;
-    },
-  );
+  return taskDetailReal(id);
 }
 
 // ── Đăng ký tình nguyện ─────────────────────────────────────────────────────
-// Task đang tuyển: gộp task của mọi khu vực đang mở (BE không có endpoint
-// "task đang mở" nên gọi theo từng khu vực). TNV đã đăng ký vẫn thấy task —
-// BE sẽ trả 409 khi nộp trùng.
-export async function listOpenTasks(volunteerId: string): Promise<Task[]> {
-  return withFallback(openTasksReal, async () => {
-    await delay(200);
-    const db = await loadDb();
-    const myRegTaskIds = new Set(
-      db.volunteerRegs.filter((r) => r.volunteerId === volunteerId).map((r) => r.taskId),
-    );
-    return db.tasks.filter((t) => {
-      if (t.status === 'DONE' || t.status === 'REVIEW') return false;
-      if (t.assignees.length >= t.volunteersNeeded) return false;
-      if (t.assignees.includes(volunteerId)) return false;
-      if (myRegTaskIds.has(t.id)) return false;
-      return true;
-    });
-  });
+// Task đang tuyển: BE trả `OPEN` theo từng khu vực và đã loại các task TNV có
+// phân công/đơn đăng ký (`GET /users/me/assignments`).
+export async function listOpenTasks(_volunteerId: string): Promise<Task[]> {
+  return openTasksReal();
 }
 
-export async function listMyRegs(volunteerId: string): Promise<VolunteerReg[]> {
-  await delay(150);
-  const db = await loadDb();
-  return db.volunteerRegs
-    .filter((r) => r.volunteerId === volunteerId)
-    .sort((a, b) => ((a.at ?? '') < (b.at ?? '') ? 1 : -1));
+/**
+ * Đơn đã gửi từ MÁY NÀY. BE chưa có endpoint liệt kê đơn của TNV nên chỉ đọc
+ * cache cục bộ (`applicationsCache`), không bịa dữ liệu.
+ */
+export async function listMyRegs(_volunteerId: string): Promise<VolunteerReg[]> {
+  return listApplications();
 }
 
-// Đơn đăng ký của TNV cho 1 task — trả về `null` (không phải undefined) khi
-// chưa có, vì React Query yêu cầu queryFn không được trả về undefined.
-export async function getMyReg(
-  taskId: string,
-  volunteerId: string,
-): Promise<VolunteerReg | null> {
-  await delay(100);
-  const db = await loadDb();
-  return db.volunteerRegs.find((r) => r.taskId === taskId && r.volunteerId === volunteerId) ?? null;
+/** Đơn của TNV cho 1 task — `null` khi chưa gửi (React Query không nhận undefined). */
+export async function getMyReg(taskId: string, _volunteerId: string): Promise<VolunteerReg | null> {
+  const rows = await listApplications();
+  return rows.find((r) => r.taskId === taskId) ?? null;
 }
 
 /** Mã lỗi nghiệp vụ BE trả trong `{ code }` của ProblemDetails. */
@@ -313,9 +198,11 @@ function problemCode(err: unknown): string | undefined {
   return typeof code === 'string' ? code : undefined;
 }
 
-// Gửi đơn đăng ký: BE `POST /api/v1/tasks/{taskId}/applications`. BE chưa có
-// endpoint liệt kê đơn của TNV nên lưu bản sao cục bộ để màn chi tiết hiện
-// đúng trạng thái "chờ duyệt" trên thiết bị này.
+/**
+ * Gửi đơn đăng ký: `POST /api/v1/tasks/{taskId}/applications`.
+ * Lưu bản ghi BE trả về vào cache cục bộ để màn chi tiết hiện đúng trạng thái
+ * (BE chưa có API đọc lại đơn của TNV).
+ */
 export async function registerForTask(
   taskId: string,
   volunteerId: string,
@@ -323,159 +210,62 @@ export async function registerForTask(
 ): Promise<VolunteerReg> {
   try {
     const reg = await applyForTaskReal(taskId, note);
-    realApi = true;
-    const db = await loadDb();
-    db.volunteerRegs = [
-      reg,
-      ...db.volunteerRegs.filter(
-        (r) => !(r.taskId === taskId && r.volunteerId === volunteerId),
-      ),
-    ];
-    await saveDb(db);
+    await upsertApplication({ ...reg, volunteerId });
     return reg;
   } catch (err) {
-    if (!isOffline(err)) {
-      // Dịch mã lỗi BE sang thông báo nghiệp vụ cho TNV.
-      switch (problemCode(err)) {
-        case 'TASK_CAPACITY_EXCEEDED':
-          throw new Error('TASK_FULL');
-        case 'TASK_SKILL_MISMATCH':
-          throw new Error('SKILL_MISMATCH');
-        case 'TASK_INVALID_STATE':
-          throw new Error('TASK_NOT_OPEN');
-        default:
-          break;
-      }
-      if (err instanceof ApiError && err.status === 409) throw new Error('ALREADY_REGISTERED');
-      throw err;
+    // Dịch mã lỗi BE sang thông báo nghiệp vụ cho TNV.
+    switch (problemCode(err)) {
+      case 'TASK_CAPACITY_EXCEEDED':
+        throw new Error('TASK_FULL');
+      case 'TASK_SKILL_MISMATCH':
+        throw new Error('SKILL_MISMATCH');
+      case 'TASK_INVALID_STATE':
+        throw new Error('TASK_NOT_OPEN');
+      default:
+        break;
     }
-    realApi = false;
-    return registerForTaskMock(taskId, volunteerId, note);
+    if (err instanceof ApiError && err.status === 409) throw new Error('ALREADY_REGISTERED');
+    throw err;
   }
 }
 
-async function registerForTaskMock(
-  taskId: string,
-  volunteerId: string,
-  note?: string,
-): Promise<VolunteerReg> {
-  await delay(280);
-  const db = await loadDb();
-  const task = db.tasks.find((t) => t.id === taskId);
-  if (!task) throw new Error('NOT_FOUND');
-  if (task.assignees.includes(volunteerId)) throw new Error('ALREADY_ASSIGNED');
-  const existing = db.volunteerRegs.find(
-    (r) => r.taskId === taskId && r.volunteerId === volunteerId && r.status !== 'REJECTED',
-  );
-  if (existing) throw new Error('ALREADY_REGISTERED');
-
-  const reg: VolunteerReg = {
-    id: `vr-${Date.now()}`,
-    taskId,
-    volunteerId,
-    status: 'PENDING',
-    at: new Date().toISOString(),
-    ...(note ? { note } : {}),
-  };
-  db.volunteerRegs = [reg, ...db.volunteerRegs];
-  // Đánh dấu đang chờ duyệt trên task để khóa nút đăng ký (nếu vẫn còn chỗ).
-  if (task.assignees.length < task.volunteersNeeded) {
-    task.pendingRegVolunteerIds = [...new Set([...(task.pendingRegVolunteerIds ?? []), volunteerId])];
-  }
-  await saveDb(db);
-  await logActivity('Bạn', `đăng ký tham gia nhiệm vụ "${task.title}"`, task.title);
-  return reg;
+/**
+ * Huỷ đơn đăng ký: BE CHƯA có API cho TNV rút đơn
+ * (`task-applications/{id}/reject` chỉ dành cho trưởng khu). Không giả lập
+ * thành công — UI ẩn nút khi chạy với BE thật.
+ */
+export async function cancelRegistration(_regId: string): Promise<void> {
+  throw new Error('BE_UNSUPPORTED_CANCEL_APPLICATION');
 }
 
-// TNV rút đơn đăng ký khi còn PENDING. BE chưa có endpoint huỷ đơn → chỉ hỗ
-// trợ ở chế độ offline.
-export async function cancelRegistration(regId: string): Promise<void> {
-  if (realApi) throw new Error('BE_UNSUPPORTED_CANCEL_APPLICATION');
-  await delay(200);
-  const db = await loadDb();
-  const reg = db.volunteerRegs.find((r) => r.id === regId);
-  if (!reg) throw new Error('NOT_FOUND');
-  if (reg.status !== 'PENDING') throw new Error('NOT_PENDING');
-  db.volunteerRegs = db.volunteerRegs.filter((r) => r.id !== regId);
-  await saveDb(db);
-}
-
-// ── Ghi log/hoạt động ───────────────────────────────────────────────────────
-async function logActivity(actor: string, action: string, target: string): Promise<void> {
-  const db = await loadDb();
-  const log: ActivityLog = {
-    id: `lg-${Date.now()}`,
-    at: new Date().toISOString(),
-    actor,
-    action,
-    target,
-  };
-  db.activityLogs = [log, ...db.activityLogs];
-  await saveDb(db);
-}
-
-// TNV phản hồi phân công (accept/decline). BE cần `assignmentId` của chính TNV
-// → tra qua `GET /users/me/assignments`; offline thì ghi vào mock DB.
+/**
+ * TNV phản hồi phân công (accept/decline). BE cần `assignmentId` của chính TNV
+ * → tra qua `GET /users/me/assignments` trong `real.ts`.
+ */
 export async function respondAssignment(
   taskId: string,
-  volunteerId: string,
+  _volunteerId: string,
   status: 'ACCEPTED' | 'DECLINED',
   note?: string,
 ): Promise<Task> {
-  return withFallback(
-    () => respondAssignmentReal(taskId, status, note),
-    async () => {
-      await delay(250);
-      const db = await loadDb();
-      const task = db.tasks.find((t) => t.id === taskId);
-      if (!task) throw new Error('NOT_FOUND');
-      const list = taskAssignmentList(task).filter((a) => a.volunteerId !== volunteerId);
-      list.push(note ? { volunteerId, status, note } : { volunteerId, status });
-      task.assignments = list;
-      task.assignees =
-        status === 'ACCEPTED'
-          ? [...new Set([...task.assignees, volunteerId])]
-          : task.assignees.filter((v) => v !== volunteerId);
-      await saveDb(db);
-      const verb = status === 'ACCEPTED' ? 'nhận' : 'từ chối';
-      await logActivity('Bạn', `${verb} nhiệm vụ "${task.title}"`, task.title);
-      return task;
-    },
-  );
+  return respondAssignmentReal(taskId, status, note);
 }
 
-// TNV gửi duyệt hoàn thành kèm ≥1 ảnh minh chứng.
-// Online: upload ảnh → `POST /tasks/{id}/submit` (hoặc `/resubmit` khi leader
-// đã yêu cầu sửa). Offline: ghi vào mock DB.
+// TNV gửi duyệt hoàn thành kèm ≥1 ảnh minh chứng:
+// upload ảnh → `POST /tasks/{id}/submit` (hoặc `/resubmit` khi trưởng khu yêu
+// cầu sửa).
 export async function submitReview(
   taskId: string,
   note: string,
   photoUris: string[],
 ): Promise<Task> {
   if (photoUris.length === 0) throw new Error('PHOTO_REQUIRED');
-  if (realApi) {
-    const current = await taskDetailReal(taskId);
-    return submitTaskReviewReal(taskId, {
-      note,
-      photoUris,
-      resubmit: current.status === 'REVISE',
-    });
-  }
-  await delay(250);
-  const db = await loadDb();
-  const task = db.tasks.find((t) => t.id === taskId);
-  if (!task) throw new Error('NOT_FOUND');
-  task.status = 'REVIEW';
-  task.submittedNotes = note;
-  task.submittedPhotoUris = photoUris;
-  task.submittedPhotos = photoUris.length;
-  await saveDb(db);
-  await logActivity(
-    'Bạn',
-    `gửi duyệt hoàn thành "${task.title}" (${photoUris.length} ảnh)`,
-    task.title,
-  );
-  return task;
+  const current = await taskDetailReal(taskId);
+  return submitTaskReviewReal(taskId, {
+    note,
+    photoUris,
+    resubmit: current.status === 'REVISE',
+  });
 }
 
 export interface TaskProgressEntry {
@@ -488,241 +278,132 @@ export interface TaskProgressEntry {
   approvedAt?: string;
 }
 
-/**
- * Tiến độ / nghiệm thu của task — BE `GET /tasks/{taskId}/progress`.
- * Offline lấy từ bản ghi mock của chính TNV.
- */
+/** Tiến độ / nghiệm thu của task — `GET /tasks/{taskId}/progress`. */
 export async function listTaskProgress(taskId: string): Promise<TaskProgressEntry[]> {
-  if (realApi) {
-    const rows = await taskProgressReal(taskId);
-    return rows
-      .map((row) => ({
-        id: row.id,
-        percent: row.percentComplete,
-        ...(row.note ? { note: row.note } : {}),
-        submittedAt: row.submittedAt,
-        isSubmission: row.isSubmission,
-        evidenceCount: row.evidence?.length ?? 0,
-        ...(row.approvedAt ? { approvedAt: row.approvedAt } : {}),
-      }))
-      .sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1));
-  }
-  await delay(120);
-  const db = await loadDb();
-  const task = db.tasks.find((t) => t.id === taskId);
-  if (!task?.submittedNotes && !task?.submittedPhotoUris?.length) return [];
-  return [
-    {
-      id: `${taskId}-mock`,
-      percent: 100,
-      ...(task.submittedNotes ? { note: task.submittedNotes } : {}),
-      submittedAt: new Date().toISOString(),
-      isSubmission: true,
-      evidenceCount: task.submittedPhotoUris?.length ?? 0,
-    },
-  ];
+  const rows = await taskProgressReal(taskId);
+  return rows
+    .map((row) => ({
+      id: row.id,
+      percent: row.percentComplete,
+      ...(row.note ? { note: row.note } : {}),
+      submittedAt: row.submittedAt,
+      isSubmission: row.isSubmission,
+      evidenceCount: row.evidence?.length ?? 0,
+      ...(row.approvedAt ? { approvedAt: row.approvedAt } : {}),
+    }))
+    .sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1));
 }
 
 // ── Giờ đóng góp ─────────────────────────────────────────────────────────────
-/** Lịch sử giờ đóng góp: BE `GET /api/v1/users/me/attendance`. */
-export async function listMyTimesheets(volunteerId: string): Promise<Timesheet[]> {
-  return withFallback(myAttendanceReal, async () => {
-    await delay(200);
-    const db = await loadDb();
-    return db.timesheets
-      .filter((t) => t.volunteerId === volunteerId)
-      .sort((a, b) => (a.date < b.date ? 1 : -1));
-  });
+/** Lịch sử giờ đóng góp: `GET /api/v1/users/me/attendance`. */
+export async function listMyTimesheets(_volunteerId: string): Promise<Timesheet[]> {
+  return myAttendanceReal();
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
-const nowHHMM = () =>
-  new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
-
 /**
- * Đơn vào ca của chính TNV: BE `GET /api/v1/users/me/attendance-requests` (mặc
- * định PENDING). Nhờ vậy app hiển thị "chờ trưởng khu duyệt" ngay sau khi gửi đơn.
+ * Đơn vào ca của chính TNV: `GET /api/v1/users/me/attendance-requests`
+ * (mặc định PENDING).
  */
 export async function listMyAttendanceRequests(
   status: AttendanceRequestItem['status'] = 'PENDING',
 ): Promise<AttendanceRequestItem[]> {
-  return withFallback(
-    async () => {
-      const rows = await myAttendanceRequestsReal(status);
-      return rows.map((row) => ({
-        id: row.id,
-        assignmentId: row.assignmentId,
-        status: (row.status ?? 'PENDING').toUpperCase() as AttendanceRequestItem['status'],
-        requestedAt: row.requestedAt ?? new Date().toISOString(),
-        note: row.note ?? null,
-        version: row.version,
-      }));
-    },
-    // Offline: mock không có khái niệm đơn chờ duyệt.
-    async () => [] as AttendanceRequestItem[],
-  );
+  const rows = await myAttendanceRequestsReal(status);
+  return rows.map((row) => ({
+    id: row.id,
+    assignmentId: row.assignmentId,
+    status: (row.status ?? 'PENDING').toUpperCase() as AttendanceRequestItem['status'],
+    requestedAt: row.requestedAt ?? new Date().toISOString(),
+    note: row.note ?? null,
+    version: row.version,
+  }));
 }
 
-/** Huỷ đơn vào ca đang chờ duyệt: BE `POST /api/v1/attendance-requests/{id}/cancel`. */
+/** Huỷ đơn vào ca đang chờ duyệt: `POST /api/v1/attendance-requests/{id}/cancel`. */
 export async function cancelAttendanceRequest(requestId: string, version: number): Promise<void> {
   await cancelAttendanceRequestReal(requestId, version);
 }
 
-/**
- * Kết quả vào ca.
- * - Online: BE tạo **đơn xin vào ca** PENDING → `pendingApproval = true`; phiên
- *   giờ công (và việc chuyển `IN_PROGRESS`) chỉ có sau khi trưởng khu duyệt.
- * - Offline (mock): tạo phiên mở ngay.
- */
 export interface CheckInResult {
   timesheet?: Timesheet;
   pendingApproval: boolean;
 }
 
 /**
- * Vào ca. Online: `POST /task-assignments/{assignmentId}/attendance/check-in-requests`
- * (cần `taskId` để tra `assignmentId` từ `GET /users/me/assignments`).
+ * Vào ca: `POST /task-assignments/{assignmentId}/attendance/check-in-requests`
+ * (cần `taskId` để tra `assignmentId`). BE tạo đơn PENDING — phiên giờ công chỉ
+ * có sau khi trưởng khu duyệt.
  */
 export async function checkIn(
-  volunteerId: string,
+  _volunteerId: string,
   taskId?: string,
   note?: string,
 ): Promise<CheckInResult> {
-  if (realApi) {
-    if (!taskId) throw new Error('TASK_REQUIRED');
-    await requestCheckInReal(taskId, note);
-    return { pendingApproval: true };
-  }
-  await delay(250);
-  const db = await loadDb();
-  const existing = db.timesheets.find(
-    (t) => t.volunteerId === volunteerId && t.date === today() && t.status === 'OPEN',
-  );
-  if (existing) return { timesheet: existing, pendingApproval: false };
-  const ts: Timesheet = {
-    id: `ts-${Date.now()}`,
-    volunteerId,
-    date: today(),
-    checkIn: nowHHMM(),
-    hours: 0,
-    status: 'OPEN',
-  };
-  db.timesheets.push(ts);
-  await saveDb(db);
-  await logActivity('Bạn', `bắt đầu đóng góp lúc ${ts.checkIn}`, `Giờ đóng góp ${ts.date}`);
-  return { timesheet: ts, pendingApproval: false };
+  if (!taskId) throw new Error('TASK_REQUIRED');
+  await requestCheckInReal(taskId, note);
+  return { pendingApproval: true };
 }
 
 /**
- * Kết thúc ca. Online: `POST /task-assignments/{assignmentId}/attendance/check-out`
+ * Kết thúc ca: `POST /task-assignments/{assignmentId}/attendance/check-out`
  * (kèm `If-Match` version của phiên đang mở).
  */
 export async function checkOut(volunteerId: string): Promise<CheckInResult> {
-  if (realApi) {
-    const open = await openSessionReal();
-    if (!open) throw new Error('NO_OPEN_SESSION');
-    const dto = await requestCheckOutReal(open.assignmentId, open.version);
-    return {
-      timesheet: {
-        id: dto.id,
-        volunteerId,
-        date: (dto.checkInAt ?? '').slice(0, 10),
-        checkIn: new Date(dto.checkInAt).toLocaleTimeString('vi-VN', {
+  const open = await openSessionReal();
+  if (!open) throw new Error('NO_OPEN_SESSION');
+  const dto = await requestCheckOutReal(open.assignmentId, open.version);
+  const hhmm = (iso?: string | null) =>
+    iso
+      ? new Date(iso).toLocaleTimeString('vi-VN', {
           hour: '2-digit',
           minute: '2-digit',
           hour12: false,
-        }),
-        ...(dto.checkOutAt
-          ? {
-              checkOut: new Date(dto.checkOutAt).toLocaleTimeString('vi-VN', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              }),
-            }
-          : {}),
-        hours: Math.round((dto.approvedMinutes / 60) * 10) / 10,
-        status: dto.checkOutAt ? 'CLOSED' : 'OPEN',
-        assignmentId: dto.assignmentId,
-        version: dto.version,
-      },
-      pendingApproval: false,
-    };
-  }
-  await delay(250);
-  const db = await loadDb();
-  const open = db.timesheets.find(
-    (t) => t.volunteerId === volunteerId && t.date === today() && t.status === 'OPEN',
-  );
-  if (!open) throw new Error('NO_OPEN_SESSION');
-  const [h, m] = open.checkIn.split(':').map(Number);
-  const out = nowHHMM();
-  const [oh, om] = out.split(':').map(Number);
-  const hours = Math.max(0, Math.round(((oh * 60 + om - (h * 60 + m)) / 60) * 10) / 10);
-  open.checkOut = out;
-  open.hours = hours;
-  open.status = 'CLOSED';
-  await saveDb(db);
-  await logActivity('Bạn', `kết thúc đóng góp lúc ${out} (${hours} giờ)`, `Giờ đóng góp ${open.date}`);
-  return { timesheet: open, pendingApproval: false };
+        })
+      : undefined;
+  return {
+    timesheet: {
+      id: dto.id,
+      volunteerId,
+      date: (dto.checkInAt ?? '').slice(0, 10),
+      checkIn: hhmm(dto.checkInAt) ?? '--:--',
+      ...(dto.checkOutAt ? { checkOut: hhmm(dto.checkOutAt) as string } : {}),
+      hours: Math.round((dto.approvedMinutes / 60) * 10) / 10,
+      status: dto.checkOutAt ? 'CLOSED' : 'OPEN',
+      assignmentId: dto.assignmentId,
+      version: dto.version,
+    },
+    pendingApproval: false,
+  };
 }
 
-// Yêu cầu chỉnh giờ công. Online: `POST /attendance/{id}/correction-requests`
-// (BE cần giờ vào/ra đầy đủ + version + lý do). Offline: đánh dấu PENDING_FIX.
+/**
+ * Yêu cầu chỉnh giờ công: `POST /attendance/{id}/correction-requests`
+ * (BE cần giờ vào/ra đầy đủ + version + lý do).
+ */
 export async function requestCorrection(ts: Timesheet, note: string): Promise<Timesheet> {
-  if (realApi) {
-    if (!ts.checkInAt || !ts.checkOutAt || ts.version == null) {
-      throw new Error('CORRECTION_DETAILS_MISSING');
-    }
-    await requestAttendanceCorrectionReal({
-      attendanceId: ts.id,
-      checkInAt: ts.checkInAt,
-      checkOutAt: ts.checkOutAt,
-      reason: note,
-      version: ts.version,
-    });
-    return { ...ts, status: 'PENDING_FIX', correctionRequest: note };
+  if (!ts.checkInAt || !ts.checkOutAt || ts.version == null) {
+    throw new Error('CORRECTION_DETAILS_MISSING');
   }
-  await delay(250);
-  const db = await loadDb();
-  const stored = db.timesheets.find((t) => t.id === ts.id);
-  if (!stored) throw new Error('NOT_FOUND');
-  stored.status = 'PENDING_FIX';
-  stored.correctionRequest = note;
-  await saveDb(db);
-  await logActivity('Bạn', `yêu cầu chỉnh giờ đóng góp "${note}"`, `Giờ đóng góp ${stored.date}`);
-  return stored;
+  await requestAttendanceCorrectionReal({
+    attendanceId: ts.id,
+    checkInAt: ts.checkInAt,
+    checkOutAt: ts.checkOutAt,
+    reason: note,
+    version: ts.version,
+  });
+  return { ...ts, status: 'PENDING_FIX', correctionRequest: note };
 }
 
 // ── Thông báo ────────────────────────────────────────────────────────────────
-export async function listActivity(): Promise<ActivityLog[]> {
-  await delay(150);
-  const db = await loadDb();
-  return [...db.activityLogs].sort((a, b) => (a.at < b.at ? 1 : -1));
-}
-
-/** Thông báo in-app: BE `GET /notifications`; offline lấy từ log cục bộ. */
+/** Thông báo in-app: `GET /notifications`. */
 export async function listNotifications(): Promise<NotificationItem[]> {
-  return withFallback(notificationsReal, async () => {
-    const logs = await listActivity();
-    return logs.map((log) => ({
-      id: log.id,
-      eventType: 'activity',
-      title: log.action,
-      body: log.target,
-      isRead: true,
-      createdAt: log.at,
-    }));
-  });
+  return notificationsReal();
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-  if (!realApi) return;
   await markNotificationReadReal(id);
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
-  if (!realApi) return;
   await markAllNotificationsReadReal();
 }
 
@@ -732,42 +413,22 @@ export interface Recognition {
   contributions: number;
 }
 
-/** Điểm & số đóng góp được ghi nhận: BE `GET /users/me/recognition`. */
+/** Điểm & số đóng góp được ghi nhận: `GET /users/me/recognition`. */
 export async function getMyRecognition(): Promise<Recognition> {
-  return withFallback(
-    async () => {
-      const summary = await myRecognitionReal();
-      return { totalPoints: summary.totalPoints, contributions: summary.contributions };
-    },
-    async () => {
-      await delay(100);
-      const db = await loadDb();
-      return { totalPoints: db.users[0]?.points ?? 0, contributions: 0 };
-    },
-  );
+  const summary = await myRecognitionReal();
+  return { totalPoints: summary.totalPoints, contributions: summary.contributions };
 }
 
 // ── Đóng góp / quyên góp ─────────────────────────────────────────────────────
-/** Các pledge của chính mình: BE `GET /users/me/contributions`. */
+/** Các pledge của chính mình: `GET /users/me/contributions`. */
 export async function listMyContributions(): Promise<MyContribution[]> {
-  return withFallback(myContributionsReal, async () => {
-    await delay(120);
-    return [] as MyContribution[];
-  });
+  return myContributionsReal();
 }
 
 /** Vật tư còn thiếu của mùa đang chạy (gợi ý khi cam kết quyên góp). */
 export async function listContributionNeeds(): Promise<ContributionNeed[]> {
-  return withFallback(
-    async () => {
-      const season = await activeSeasonReal();
-      return season ? contributionNeedsReal(season.id) : [];
-    },
-    async () => {
-      await delay(120);
-      return [] as ContributionNeed[];
-    },
-  );
+  const season = await activeSeasonReal();
+  return season ? contributionNeedsReal(season.id) : [];
 }
 
 export interface PledgeMaterialInput {
@@ -776,29 +437,27 @@ export interface PledgeMaterialInput {
   note?: string;
 }
 
-/** Cam kết quyên góp vật tư: BE `POST /donations/material-pledges` (chỉ khi online). */
+/** Cam kết quyên góp vật tư: `POST /donations/material-pledges`. */
 export async function pledgeMaterial(
   workAreaId: string,
   items: PledgeMaterialInput[],
   note?: string,
 ): Promise<MyContribution> {
-  if (!realApi) throw new Error('OFFLINE');
   return pledgeMaterialReal(workAreaId, items, note);
 }
 
-/** Cam kết quyên góp tiền: BE `POST /donations/monetary-pledges` (chỉ khi online). */
+/** Cam kết quyên góp tiền: `POST /donations/monetary-pledges`. */
 export async function pledgeMoney(
   amount: number,
   note?: string,
   workAreaId?: string,
 ): Promise<MyContribution> {
-  if (!realApi) throw new Error('OFFLINE');
   const season = await activeSeasonReal();
   if (!season) throw new Error('NOT_FOUND');
   return pledgeMoneyReal(season.id, amount, workAreaId, note);
 }
 
-/** Đăng ký cho mượn dụng cụ: BE `POST /loan-offers` (chỉ khi online). */
+/** Đăng ký cho mượn dụng cụ: `POST /loan-offers`. */
 export async function offerLoanItem(input: {
   ownerName: string;
   ownerPhone?: string;
@@ -810,7 +469,6 @@ export async function offerLoanItem(input: {
   initialCondition?: string;
   workAreaId?: string;
 }): Promise<void> {
-  if (!realApi) throw new Error('OFFLINE');
   const season = await activeSeasonReal();
   if (!season) throw new Error('NOT_FOUND');
   await offerLoanReal({ ...input, seasonId: season.id });

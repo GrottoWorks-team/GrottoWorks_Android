@@ -50,6 +50,9 @@ export interface WorkArea {
   id: string; name: string; type: AreaType; level: 'PARISH' | 'COMMUNITY'; communityId?: string;
   leaderId: string; officerId: string; progress: number; volunteerCount: number;
   taskCount: number; status: 'ON_TRACK' | 'AT_RISK' | 'LATE';
+  description?: string | null;
+  startDate?: string | null;
+  deadline?: string | null;
 }
 
 export interface Task {
@@ -186,10 +189,6 @@ export interface SupportRequest {
 }
 
 export interface ChecklistItem { id: string; areaId: string; label: string; done: boolean; note?: string }
-
-export interface ActivityLog { id: string; at: string; actor: string; action: string; target: string }
-
-export const SKILLS = ['Điện', 'Mộc', 'Hàn', 'Trang trí', 'Vận chuyển', 'Logistics', 'Sơn'] as const;
 
 // ── Phân công trực tiếp: helper đồng bộ với webapp ──────────────────────────
 // `assignees` (dữ liệu cũ) = ACCEPTED, overlay `assignments`.

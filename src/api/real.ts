@@ -11,13 +11,14 @@
 //   GET   /api/v1/users/me/attendance            GET /api/v1/users/me/attendance-requests
 //
 // CHƯA nối được (BE thiếu dữ liệu/endpoint):
-//   - nộp minh chứng hoàn thành: chưa có endpoint.
-//   - liệt kê/huỷ đơn đăng ký của chính TNV: chưa có endpoint.
-// Vật tư, thông báo vẫn mock ở `./index.ts`.
+//   - liệt kê/huỷ đơn đăng ký của chính TNV: chưa có endpoint (cache cục bộ ở
+//     `applicationsCache.ts`).
+//   - mô hình 3D của khu vực: chưa có `design-scene` (scene mock ở màn TNV).
 import type {
   AvailabilitySlot,
   CommunityOption,
   ContributionNeed,
+  Material,
   MyContribution,
   NotificationItem,
   Role,
@@ -155,6 +156,9 @@ export function toWorkArea(dto: WorkAreaDto): WorkArea {
     ...(dto.communityId ? { communityId: dto.communityId } : {}),
     leaderId: dto.leaderId ?? '',
     officerId: dto.materialOfficerId ?? '',
+    ...(dto.description ? { description: dto.description } : {}),
+    ...(dto.startDate ? { startDate: dto.startDate } : {}),
+    ...(dto.deadline ? { deadline: dto.deadline } : {}),
     progress: 0,
     volunteerCount: 0,
     taskCount: 0,
@@ -173,6 +177,39 @@ export async function loginReal(email: string, password: string): Promise<User> 
   });
   await saveTokens(tokens);
   return currentUser();
+}
+
+/** Danh mục vật tư — `GET /api/v1/materials` (BE chỉ trả thông tin catalog). */
+export interface MaterialDto {
+  id: string;
+  categoryId?: string | null;
+  code?: string | null;
+  name: string;
+  unit: string;
+  status: string;
+}
+
+/**
+ * Danh mục vật tư dùng để hiển thị tên/đơn vị trong chi tiết nhiệm vụ.
+ * Các trường số lượng của `Material` thuộc API "vật tư theo khu" (BE chưa trả ở
+ * endpoint này) nên để 0 — màn TNV không dùng tới.
+ */
+export async function materialsReal(): Promise<Material[]> {
+  const dtos = await http<MaterialDto[]>('/materials?size=200');
+  return dtos.map((dto) => ({
+    id: dto.id,
+    areaId: '',
+    name: dto.name,
+    unit: dto.unit,
+    required: 0,
+    existing: 0,
+    purchased: 0,
+    donatedPledged: 0,
+    donatedReceived: 0,
+    received: 0,
+    status: 'ENOUGH',
+    estUnitPrice: 0,
+  }));
 }
 
 /** GET /api/v1/users/me (+ GET /api/v1/skills để dịch skillId → tên kỹ năng). */

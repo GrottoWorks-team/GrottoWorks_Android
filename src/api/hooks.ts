@@ -3,12 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   cancelAttendanceRequest,
   cancelRegistration,
+  areaTasks,
   checkIn,
   checkOut,
   getMyRecognition,
   getMyReg,
   getTask,
-  listActivity,
   listAreas,
   listCommunities,
   listContributionNeeds,
@@ -44,8 +44,8 @@ export const keys = {
   myReg: (taskId: string, volunteerId: string) => ['myReg', taskId, volunteerId] as const,
   timesheets: (volunteerId: string) => ['timesheets', volunteerId] as const,
   attendanceRequests: (volunteerId: string) => ['attendanceRequests', volunteerId] as const,
-  activity: ['activity'] as const,
   areas: ['areas'] as const,
+  areaTasks: (areaId: string) => ['areaTasks', areaId] as const,
   materials: ['materials'] as const,
   skills: ['skills'] as const,
   notifications: ['notifications'] as const,
@@ -59,6 +59,13 @@ export const useCommunities = () =>
   useQuery({ queryKey: keys.communities, queryFn: listCommunities });
 
 export const useAreas = () => useQuery({ queryKey: keys.areas, queryFn: listAreas });
+
+export const useAreaTasks = (areaId: string) =>
+  useQuery({
+    queryKey: keys.areaTasks(areaId),
+    queryFn: () => areaTasks(areaId),
+    enabled: Boolean(areaId),
+  });
 
 export const useTaskMaterials = () =>
   useQuery({ queryKey: keys.materials, queryFn: listMaterials });
@@ -153,14 +160,11 @@ export const useMyAttendanceRequests = (volunteerId: string) =>
     staleTime: 0,
   });
 
-export const useActivity = () => useQuery({ queryKey: keys.activity, queryFn: listActivity });
-
 // Sau mọi mutation phân công/nộp duyệt: làm mới nhiệm vụ + thông báo.
 function invalidateTaskData(qc: ReturnType<typeof useQueryClient>, volunteerId: string) {
   void qc.invalidateQueries({ queryKey: keys.tasks(volunteerId) });
   void qc.invalidateQueries({ queryKey: keys.openTasks(volunteerId) });
   void qc.invalidateQueries({ queryKey: keys.myRegs(volunteerId) });
-  void qc.invalidateQueries({ queryKey: keys.activity });
 }
 
 export interface RespondArgs {
@@ -249,7 +253,6 @@ export function useCheckIn(volunteerId: string) {
     onSuccess: (_result, vars) => {
       void qc.invalidateQueries({ queryKey: keys.timesheets(volunteerId) });
       void qc.invalidateQueries({ queryKey: keys.attendanceRequests(volunteerId) });
-      void qc.invalidateQueries({ queryKey: keys.activity });
       // Việc có thể chuyển IN_PROGRESS sau khi trưởng khu duyệt → làm mới danh sách.
       invalidateTaskData(qc, volunteerId);
       if (vars?.taskId) void qc.invalidateQueries({ queryKey: keys.task(vars.taskId) });
@@ -264,7 +267,6 @@ export function useCheckOut(volunteerId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: keys.timesheets(volunteerId) });
       void qc.invalidateQueries({ queryKey: keys.attendanceRequests(volunteerId) });
-      void qc.invalidateQueries({ queryKey: keys.activity });
       invalidateTaskData(qc, volunteerId);
     },
   });
@@ -277,7 +279,6 @@ export function useRequestCorrection(volunteerId: string) {
       requestCorrection(timesheet, note),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: keys.timesheets(volunteerId) });
-      void qc.invalidateQueries({ queryKey: keys.activity });
     },
   });
 }

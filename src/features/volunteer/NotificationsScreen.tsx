@@ -1,5 +1,5 @@
 // Thông báo in-app của TNV — BE `GET /notifications` (kèm đánh dấu đã đọc).
-// Offline: hiển thị log hoạt động cục bộ từ mock.
+// Danh sách thông báo của chính TNV — `GET /api/v1/notifications`.
 import { FlatList, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Screen } from '../../components/Screen';
