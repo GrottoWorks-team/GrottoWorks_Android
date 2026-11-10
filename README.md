@@ -3,16 +3,17 @@ GrottoWorks Mobile
 Ứng dụng di động cho **Tình nguyện viên (volunteer)** trong hệ thống GrottoWorks —
 điều hành hang đá & cảnh tuyển Giáng sinh của giáo xứ.
 
-Xây dựng bằng **Expo (SDK 57) + React Native + TypeScript + React Navigation**,
+Xây dựng bằng **Expo (SDK 58) + React Native + TypeScript + React Navigation**,
 đồng bộ design token, domain types và i18n với webapp (`../grottoworks`).
 
 ## Tính năng (theo nghiệp vụ TNV)
 
 | Tab | Chức năng |
 | --- | --- |
-| **Nhiệm vụ** | 2 sub-tab: **Việc của tôi** (lọc chờ/đang làm/xong, chi tiết, **nhận / từ chối kèm lý do**, gửi duyệt hoàn thành) và **Đang tuyển** (task mở đăng ký, sắp theo độ khớp kỹ năng, **gửi đơn đăng ký** + **rút đơn**) |
+| **Nhiệm vụ** | 2 sub-tab: **Việc của tôi** (lọc chờ/đang làm/xong, chi tiết, **nhận / từ chối kèm lý do**, gửi duyệt hoàn thành, **xem lớp mô hình 3D gắn với nhiệm vụ**) và **Đang tuyển** (task mở đăng ký, sắp theo độ khớp kỹ năng, **gửi đơn đăng ký**) |
+| **Khu vực** | **Read-only**: danh sách khu vực của mùa đang chạy → chi tiết (cấp, ngày bắt đầu/hạn, mô tả) → nhiệm vụ thuộc khu vực; bấm việc của tôi mở chi tiết nhiệm vụ, việc đang tuyển mở màn đăng ký |
 | **Giờ đóng góp** | **Lịch tháng** đánh dấu ngày có giờ đóng góp / có việc đến hạn; chọn ngày xem giờ đóng góp + việc cần làm; **xin vào ca / kết thúc ca** (BE `check-in-requests` → trưởng khu duyệt), yêu cầu chỉnh giờ |
-| **Trang chủ** (giữa) | **Giờ đóng góp tuần (nổi bật)**, lời mời đang chờ, đơn đăng ký của tôi, gợi ý nhiệm vụ đang tuyển, nhiệm vụ đang làm |
+| **Trang chủ** | **Giờ đóng góp tuần (nổi bật)**, lời mời đang chờ, đơn đăng ký của tôi, gợi ý nhiệm vụ đang tuyển, nhiệm vụ đang làm |
 | **Thông báo** | Thông báo in-app của TNV (mời phân công, **kết quả đăng ký**, ghi giờ…) |
 | **Hồ sơ** | **Chế độ xem** (avatar theo màu riêng, tên/email, điểm & giờ đóng góp, kỹ năng, thời gian rảnh, **thông tin phiên bản**) → nút **Chỉnh sửa** mở trang phụ để cập nhật hồ sơ/kỹ năng/thời gian rảnh; đăng xuất |
 
@@ -63,8 +64,8 @@ Sau đó:
 ### Backend (API Gateway)
 
 App gọi API thật qua Gateway `http://localhost:6102/api/v1` (bật bằng
-`docker compose up -d` trong `GrottoWorks_BE`); khi Gateway không gọi được app tự
-rơi về dữ liệu mock nên vẫn demo được offline.
+`docker compose up -d` trong `GrottoWorks_BE`). **Không còn chế độ mock/offline**:
+Gateway tắt thì app báo lỗi mất kết nối thay vì hiện dữ liệu mẫu.
 
 - **Web:** dùng `localhost:6102` — nhớ thêm origin của Expo (`localhost:8081`,
   `localhost:8082`) vào `Cors:AllowedOrigins` của Gateway (đã có trong
@@ -84,10 +85,12 @@ Mật khẩu chung: **`GxThanhTam@2026`** (khớp seed BE).
 
 | Email | Vai trò |
 | --- | --- |
-| `tram.do@giaoxuthanhtam.org.vn` | TNV — tài khoản seed của BE (offline: ánh xạ sang TNV mock `v1`) |
-| `bao.huynh@giaoxuthanhtam.org.vn` | TNV — tài khoản seed của BE (offline: ánh xạ sang TNV mock `v2`) |
-| `volunteer@grottoworks.vn` | TNV Gioan Bùi Văn Hùng — có 1 lời mời (PENDING), 2 việc đang làm, 1 việc đã từ chối |
-| `volunteer2@grottoworks.vn` | TNV Agnês Trần Ngọc Anh |
+| `tram.do@giaoxuthanhtam.org.vn` | TNV — tài khoản seed của BE |
+| `bao.huynh@giaoxuthanhtam.org.vn` | TNV — tài khoản seed của BE |
+
+Các vai trò khác (ADMIN/PARISH/LEADER/MO) dùng trên webapp — xem `ACCOUNTS.md`.
+Đơn đăng ký đã gửi được nhớ cục bộ (`src/api/applicationsCache.ts`) vì BE chưa có
+API liệt kê/huỷ đơn của TNV.
 
 ## Kiểm tra chất lượng
 
@@ -100,31 +103,32 @@ npm run doctor       # kiểm tra cấu hình Expo
 
 ```
 src/
-├── api/          # tầng dữ liệu mock (thay MSW) + React Query hooks
+├── api/          # gọi BE thật (client + real.ts + hooks) + cache đơn đăng ký
 ├── auth/         # AuthContext — phiên đăng nhập (AsyncStorage)
 ├── components/   # UI dùng chung (Button, Card, StatusTag, Calendar, Toast, Screen…)
-├── features/     # theo vai trò: auth/ (login), volunteer/ (màn TNV)
+├── features/     # theo vai trò: auth/ (login), volunteer/ (màn TNV + TaskModelScreen)
 ├── lib/          # i18n, format
 ├── locales/      # vi.json (mặc định) + en.json
-├── mocks/        # seed dữ liệu mẫu + mock DB (đồng bộ với webapp)
-├── navigation/   # Root stack, tabs (5 tab, Home giữa), tasks stack + types
+├── navigation/   # Root stack, tabs (6 tab: Nhiệm vụ · Khu vực · Giờ · Trang chủ · Thông báo · Hồ sơ), tasks/areas stack + types
 ├── theme/        # design tokens Golden Winter
 └── types/        # domain model (đồng bộ webapp)
 ```
 
 ## Ghi chú kỹ thuật
 
-- **Dữ liệu:** app chạy **offline** với tầng mock trong `src/api` (seed ở
-  `src/mocks`), persist thay đổi vào AsyncStorage. Khi có backend thật, chỉ cần
-  thay ruột các hàm trong `src/api/index.ts` sang `fetch`.
+- **Dữ liệu:** app gọi **BE thật** cho toàn bộ domain TNV (auth, hồ sơ, khu vực, nhiệm vụ,
+  phân công, ứng tuyển, chấm công, vật tư, quyên góp, thông báo, điểm). Không còn
+  mock/seed trong `src/`; chỉ đơn đăng ký đã gửi được cache cục bộ vì BE chưa có API
+  liệt kê/huỷ đơn của TNV.
 - **Navigation:** React Navigation v7 (native-stack + bottom-tabs), không dùng
   Expo Router (theo yêu cầu).
 - **i18n:** mặc định tiếng Việt, fallback tiếng Anh — dùng chung khoá với web.
 - **Nghiệp vụ phân công:** logic `assignees` ⇄ `assignments` (PENDING/ACCEPTED/
   DECLINED) là **lời mời leader → TNV**; `VolunteerReg` (PENDING/APPROVED/
   REJECTED) là **đơn TNV → leader**. Cả hai ở `src/types/index.ts`.
-- **Mở rộng backend:** để nối backend thật, thay ruột `src/api/index.ts` — giữ
-  nguyên `VolunteerReg`/`TaskAssignment` và các hook trong `src/api/hooks.ts`.
+- **Khu vực (read-only):** dùng `GET /seasons` → `/seasons/{id}/work-areas` → `/work-areas/{id}/tasks`.
+- **Mô hình 3D của TNV:** màn `TaskModelScreen` chỉ hiển thị **(các) lớp có `taskIds` chứa nhiệm vụ đã nhận** (WebView + canvas 2D, scene mock trong `features/volunteer/mockScene.ts`) vì BE chưa có `GET /work-areas/{id}/design-scene` — xem `GrottoWorks_BE/docs/BE-TODO-demo-2026-11-10.md` §3.
+- **Mở rộng backend:** thêm hàm trong `src/api/real.ts` rồi export qua `src/api/index.ts` — giữ nguyên `VolunteerReg`/`TaskAssignment` và các hook trong `src/api/hooks.ts`.
 - **Vào ca / bắt đầu việc:** TNV bấm **Bắt đầu làm việc** (chi tiết nhiệm vụ) →
   `POST /task-assignments/{assignmentId}/attendance/check-in-requests` (kèm
   `Idempotency-Key`, `assignmentId` tra từ `GET /users/me/assignments`). BE tạo
