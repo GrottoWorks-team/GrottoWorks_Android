@@ -41,6 +41,13 @@
           "cameraPermission": "Ứng dụng cần quyền máy ảnh để chụp ảnh minh chứng hoàn thành nhiệm vụ.",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#0A5C36",
+          "defaultChannel": "grottoworks-default"
+        }
       ]
     ]
   }

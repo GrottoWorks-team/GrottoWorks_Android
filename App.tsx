@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from './src/auth/AuthContext';
 import { ToastProvider } from './src/components/Toast';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { NotificationBridge } from './src/notifications/NotificationBridge';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -32,6 +33,8 @@ export default function App() {
             <NavigationContainer>
               <RootNavigator />
             </NavigationContainer>
+            {/* Thông báo in-app → khay thông báo của điện thoại (khi đã đăng nhập). */}
+            <NotificationBridge />
             <StatusBar style="dark" />
           </ToastProvider>
         </AuthProvider>

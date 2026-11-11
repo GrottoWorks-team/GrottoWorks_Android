@@ -107,12 +107,28 @@ src/
 ├── auth/         # AuthContext — phiên đăng nhập (AsyncStorage)
 ├── components/   # UI dùng chung (Button, Card, StatusTag, Calendar, Toast, Screen…)
 ├── features/     # theo vai trò: auth/ (login), volunteer/ (màn TNV + TaskModelScreen)
-├── lib/          # i18n, format
+├── lib/          # i18n, format, notificationTray (đẩy thông báo ra khay hệ điều hành)
 ├── locales/      # vi.json (mặc định) + en.json
 ├── navigation/   # Root stack, tabs (6 tab: Nhiệm vụ · Khu vực · Giờ · Trang chủ · Thông báo · Hồ sơ), tasks/areas stack + types
+├── notifications/ # NotificationBridge — poll /notifications → phát notification ra khay
 ├── theme/        # design tokens Golden Winter
 └── types/        # domain model (đồng bộ webapp)
 ```
+
+## Thông báo trên khay hệ điều hành
+
+- Khi đã đăng nhập, `NotificationBridge` (`src/notifications/NotificationBridge.tsx`) poll
+  `GET /api/v1/notifications` mỗi 60s (và refetch khi app quay lại foreground). Thông báo
+  **chưa đọc** chưa từng hiện sẽ được phát bằng `expo-notifications` → hiện trong khay
+  thông báo của Android/iOS kèm badge số chưa đọc.
+- Lần đầu mở app sẽ **không** dội lại thông báo cũ: mốc thời gian lấy lúc khởi động +
+  danh sách id đã phát lưu ở `AsyncStorage` (`grotto:tray-notified`).
+- Tôn trọng `pushEnabled` trong “Tuỳ chọn thông báo” (`/users/me/notification-preferences`).
+- Hạn chế hiện tại: **chưa có push server** — app phải đang chạy (kể cả nền) để phát;
+  nếu OS kill app thì không có thông báo. Khi BE có endpoint lưu Expo push token và
+  gửi qua Expo Push API thì chỉ cần đổi phần gửi, UI/khay giữ nguyên.
+- Kiểm thử tay: đăng nhập TNV → mở app → nhờ leader duyệt/đóng phiên trên web → trong
+  ≤ 60s (hoặc khi đưa app về foreground) notification hiện ở khay.
 
 ## Ghi chú kỹ thuật
 
