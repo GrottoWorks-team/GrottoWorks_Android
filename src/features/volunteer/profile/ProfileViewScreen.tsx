@@ -135,6 +135,12 @@ export function ProfileViewScreen() {
             variant="outline"
             onPress={() => navigation.navigate('LoanOffer')}
           />
+          {/* Việc đi mua được trưởng khu giao (F-RES-09) — ghi nhận số lượng/đơn giá thật */}
+          <Button
+            label={t('purchase.title')}
+            variant="outline"
+            onPress={() => navigation.navigate('Purchases')}
+          />
         </Card>
 
         {/* Cài đặt thông báo — BE đã có `users/me/notification-preferences` */}

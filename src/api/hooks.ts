@@ -25,9 +25,12 @@ import {
   listTaskProgress,
   markAllNotificationsRead,
   markNotificationRead,
+  getPurchaseRequest,
+  listMyPurchaseTasks,
   offerLoanItem,
   pledgeMaterial,
   pledgeMoney,
+  recordPurchase,
   registerForTask,
   requestCorrection,
   respondAssignment,
@@ -35,7 +38,7 @@ import {
   updateNotificationPreferences,
   updateUser,
 } from '../api';
-import type { PledgeMaterialInput, ProfilePatch } from '../api';
+import type { PledgeMaterialInput, ProfilePatch, RecordPurchaseInput } from '../api';
 import type { Timesheet } from '../types';
 
 export const keys = {
@@ -56,6 +59,8 @@ export const keys = {
   contributions: (volunteerId: string) => ['contributions', volunteerId] as const,
   contributionNeeds: ['contributionNeeds'] as const,
   communities: ['communities'] as const,
+  purchaseTasks: ['purchase-tasks'] as const,
+  purchaseRequest: (requestId: string) => ['purchase-request', requestId] as const,
 };
 
 export const useCommunities = () =>
@@ -113,6 +118,34 @@ export const useMyContributions = (volunteerId: string) =>
 
 export const useContributionNeeds = () =>
   useQuery({ queryKey: keys.contributionNeeds, queryFn: listContributionNeeds });
+
+/**
+ * Việc đi mua được giao cho TNV (F-RES-09, BR-30).
+ * `staleTime: 0` vì trạng thái đơn đổi từ phía trưởng khu / trưởng ban vật tư.
+ */
+export const useMyPurchaseTasks = () =>
+  useQuery({ queryKey: keys.purchaseTasks, queryFn: listMyPurchaseTasks, staleTime: 0 });
+
+/** Dòng vật tư của đơn mua cần ghi nhận số lượng thật. */
+export const usePurchaseRequest = (requestId: string) =>
+  useQuery({
+    queryKey: keys.purchaseRequest(requestId),
+    queryFn: () => getPurchaseRequest(requestId),
+    enabled: Boolean(requestId),
+    staleTime: 0,
+  });
+
+/** Ghi nhận lần mua → làm mới danh sách việc mua (đơn chuyển sang PURCHASED). */
+export function useRecordPurchase() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: RecordPurchaseInput) => recordPurchase(input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: keys.purchaseTasks });
+      void qc.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+}
 
 export const useMyTasks = (volunteerId: string) =>
   useQuery({

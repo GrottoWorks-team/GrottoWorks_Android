@@ -7,6 +7,8 @@ import { MyContributionsScreen } from '../features/volunteer/profile/MyContribut
 import { PledgeScreen } from '../features/volunteer/profile/PledgeScreen';
 import { LoanOfferScreen } from '../features/volunteer/profile/LoanOfferScreen';
 import { NotificationSettingsScreen } from '../features/volunteer/profile/NotificationSettingsScreen';
+import { PurchaseListScreen } from '../features/volunteer/purchase/PurchaseListScreen';
+import { RecordPurchaseScreen } from '../features/volunteer/purchase/RecordPurchaseScreen';
 import { colors } from '../theme/tokens';
 import type { ProfileStackParamList } from './types';
 
@@ -52,6 +54,16 @@ export function ProfileNavigator() {
         name="NotificationSettings"
         component={NotificationSettingsScreen}
         options={{ title: t('notifications.prefs') }}
+      />
+      <Stack.Screen
+        name="Purchases"
+        component={PurchaseListScreen}
+        options={{ title: t('purchase.title') }}
+      />
+      <Stack.Screen
+        name="RecordPurchase"
+        component={RecordPurchaseScreen}
+        options={{ title: t('purchase.record') }}
       />
     </Stack.Navigator>
   );

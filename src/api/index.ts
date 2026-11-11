@@ -10,6 +10,12 @@
 //     (chỉ nhớ đơn đã gửi từ máy này) + huỷ đơn ném lỗi BE_UNSUPPORTED_*.
 //   - Mô hình 3D của khu vực → scene mock riêng ở màn `TaskModelScreen`.
 import { ApiError } from './client';
+import type {
+  PurchaseDto,
+  PurchaseRequestDetailDto,
+  PurchaseRequestItemDto,
+  PurchaseTaskDto,
+} from './real';
 import {
   activeSeasonReal,
   applyForTaskReal,
@@ -26,6 +32,9 @@ import {
   myAttendanceReal,
   myAttendanceRequestsReal,
   myContributionsReal,
+  myPurchaseTasksReal,
+  purchaseRequestReal,
+  recordPurchaseReal,
   myRecognitionReal,
   myTasksReal,
   notificationsReal,
@@ -491,4 +500,36 @@ export async function offerLoanItem(input: {
   const season = await activeSeasonReal();
   if (!season) throw new Error('NOT_FOUND');
   await offerLoanReal({ ...input, seasonId: season.id });
+}
+
+// ── Mua hàng (việc đi mua của TNV — F-RES-09, BR-30) ───────────────────────
+export type {
+  PurchaseDto,
+  PurchaseRequestDetailDto,
+  PurchaseRequestItemDto,
+  PurchaseTaskDto,
+};
+
+/** Việc đi mua còn hiệu lực của tôi: `GET /users/me/tasks?taskType=PURCHASE`. */
+export async function listMyPurchaseTasks(): Promise<PurchaseTaskDto[]> {
+  return myPurchaseTasksReal();
+}
+
+/** Đơn mua cần ghi nhận: `GET /purchase-requests/{requestId}`. */
+export async function getPurchaseRequest(
+  requestId: string,
+): Promise<PurchaseRequestDetailDto> {
+  return purchaseRequestReal(requestId);
+}
+
+export interface RecordPurchaseInput {
+  requestId: string;
+  supplierName?: string;
+  purchaseDate?: string;
+  items: { purchaseRequestItemId: string; purchasedQuantity: number; unitPrice: number }[];
+}
+
+/** Ghi nhận lần mua: `POST /purchase-requests/{requestId}/purchases` (kho CHƯA tăng). */
+export async function recordPurchase(input: RecordPurchaseInput): Promise<PurchaseDto> {
+  return recordPurchaseReal(input);
 }

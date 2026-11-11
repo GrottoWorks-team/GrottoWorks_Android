@@ -685,6 +685,104 @@ export async function myAttendanceRequestsReal(
   );
 }
 
+// ── Mua hàng (Resource F-RES-09 — BR-30) ───────────────────────────────────
+// TNV được trưởng khu giao việc đi mua (`taskType = PURCHASE`) ghi lại lần mua
+// thật: số lượng + đơn giá + nhà cung cấp. BE KHÔNG nhập kho ở bước này (BR-26),
+// kho chỉ tăng khi trưởng ban vật tư xác nhận giao (`POST /purchases/{id}/confirm-delivery`).
+
+/** Việc đi mua đã giao cho tôi (`GET /users/me/tasks?taskType=PURCHASE`). */
+export interface PurchaseTaskDto {
+  id: string;
+  name: string;
+  status: string;
+  purchaseRequestId: string;
+  deadline?: string | null;
+}
+
+/** Một dòng vật tư của đơn mua (`GET /purchase-requests/{id}`). */
+export interface PurchaseRequestItemDto {
+  id: string;
+  materialId: string;
+  materialCode?: string;
+  materialName: string;
+  unit: string;
+  requestedQuantity: number;
+  estimatedCost?: number | null;
+}
+
+export interface PurchaseRequestDetailDto {
+  id: string;
+  workAreaId: string;
+  status: string;
+  items: PurchaseRequestItemDto[];
+  estimatedTotal?: { amount: number; currency: string } | null;
+  version: number;
+}
+
+export interface PurchaseDto {
+  id: string;
+  purchaseRequestId: string;
+  taskId: string;
+  supplierName?: string | null;
+  purchaseDate: string;
+  totalCost: { amount: number; currency: string };
+  status: string;
+  items: {
+    id: string;
+    materialId: string;
+    purchasedQuantity: number;
+    unitPrice: { amount: number; currency: string };
+  }[];
+  version: number;
+}
+
+/**
+ * GET /api/v1/users/me/tasks?taskType=PURCHASE — việc đi mua còn hiệu lực.
+ * Việc đã huỷ/hoàn thành không cần ghi nhận nữa nên lọc ngay ở client.
+ */
+export async function myPurchaseTasksReal(): Promise<PurchaseTaskDto[]> {
+  const dtos = await http<TaskDto[]>('/users/me/tasks?taskType=PURCHASE&size=100');
+  return dtos
+    .filter(
+      (dto) =>
+        Boolean(dto.purchaseRequestId) &&
+        !['CANCELLED', 'COMPLETED'].includes((dto.status ?? '').toUpperCase()),
+    )
+    .map((dto) => ({
+      id: dto.id,
+      name: dto.name,
+      status: (dto.status ?? '').toUpperCase(),
+      purchaseRequestId: dto.purchaseRequestId as string,
+      deadline: dto.deadline ?? null,
+    }));
+}
+
+/** GET /api/v1/purchase-requests/{requestId} — dòng vật tư cần mua (VOLUNTEER đọc được). */
+export async function purchaseRequestReal(requestId: string): Promise<PurchaseRequestDetailDto> {
+  return await http<PurchaseRequestDetailDto>(`/purchase-requests/${requestId}`);
+}
+
+/** POST /api/v1/purchase-requests/{requestId}/purchases — ghi nhận lần mua của buyer. */
+export async function recordPurchaseReal(input: {
+  requestId: string;
+  supplierName?: string;
+  purchaseDate?: string;
+  items: { purchaseRequestItemId: string; purchasedQuantity: number; unitPrice: number }[];
+}): Promise<PurchaseDto> {
+  return await http<PurchaseDto>(`/purchase-requests/${input.requestId}/purchases`, {
+    method: 'POST',
+    body: {
+      supplierName: input.supplierName?.trim() || null,
+      purchaseDate: input.purchaseDate || null,
+      items: input.items.map((item) => ({
+        purchaseRequestItemId: item.purchaseRequestItemId,
+        purchasedQuantity: item.purchasedQuantity,
+        unitPrice: item.unitPrice,
+      })),
+    },
+  });
+}
+
 // ── Điểm ghi nhận (Reporting) ───────────────────────────────────────────────
 export interface RecognitionSummaryDto {
   userId: string;
