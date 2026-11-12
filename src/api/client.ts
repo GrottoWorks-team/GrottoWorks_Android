@@ -11,6 +11,7 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import i18n from '../lib/i18n';
 
 /**
  * Cổng Gateway (YARP) khi chạy `docker compose up` ở máy dev.
@@ -85,12 +86,18 @@ export async function clearTokens(): Promise<void> {
 export class ApiError extends Error {
   readonly status: number;
   readonly body: unknown;
+  /** Mã nghiệp vụ BE (`problem.code`) — dùng đối chiếu log/báo lỗi. */
+  readonly code?: string;
+  /** `detail` gốc của BE (tiếng Anh) — giữ lại để debug, UI không hiển thị trực tiếp. */
+  readonly detail?: string;
 
-  constructor(status: number, message: string, body?: unknown) {
+  constructor(status: number, message: string, body?: unknown, code?: string, detail?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.body = body;
+    this.code = code;
+    this.detail = detail;
   }
 
   /** true khi lỗi mạng (không kết nối được BE) — UI hiển thị thông báo mất kết nối. */
@@ -142,7 +149,15 @@ export async function http<T>(path: string, options: HttpOptions = {}): Promise<
   const parsed = text ? safeJson(text) : undefined;
 
   if (!res.ok) {
-    throw new ApiError(res.status, pickError(parsed) ?? `${res.status} ${res.statusText}`, parsed);
+    const code = problemCode(parsed);
+    const detail = pickError(parsed);
+    throw new ApiError(
+      res.status,
+      translateApiCode(code) ?? detail ?? `${res.status} ${res.statusText}`,
+      parsed,
+      code,
+      detail,
+    );
   }
   return unwrap<T>(parsed);
 }
@@ -210,6 +225,43 @@ function pickError(body: unknown): string | undefined {
   for (const key of ['detail', 'message', 'title', 'error']) {
     const value = b[key];
     if (typeof value === 'string' && value) return value;
+  }
+  return undefined;
+}
+
+function problemCode(body: unknown): string | undefined {
+  if (!body || typeof body !== 'object') return undefined;
+  const code = (body as Record<string, unknown>).code;
+  return typeof code === 'string' && code ? code : undefined;
+}
+
+/**
+ * Mã lỗi BE → câu tiếng Việt/Anh (đồng bộ với webapp, 12/11/2026):
+ *   1. `errors.<CODE>` — câu soạn riêng.
+ *   2. `errorsByKind.<kind>` — câu theo nhóm hậu tố (`_NOT_FOUND`, `_INVALID_STATE`, …) để mã BE
+ *      mới thêm vẫn ra tiếng Việt thay vì lộ `detail` tiếng Anh.
+ */
+const KIND_RULES: readonly (readonly [RegExp, string])[] = [
+  [/(_VERSION_MISMATCH|^INVALID_IF_MATCH|^SOURCE_VERSION_INVALID)$/, 'versionConflict'],
+  [/(_NOT_FOUND|_UNKNOWN)$/, 'notFound'],
+  [/(_REASON_REQUIRED|_NOTE_REQUIRED|_REQUIRED|_ID_REQUIRED)$/, 'required'],
+  [/(_INVALID_STATE|_NOT_OPEN|_NOT_READY|_NOT_COMPLETED|_NOT_ACCEPTED|_NOT_APPROVED|_NOT_LOCKED)$/, 'invalidState'],
+  [/(_ACCESS_DENIED|_SCOPE_DENIED|_DENIED|^FORBIDDEN|^UNAUTHENTICATED)$/, 'denied'],
+  [/(_ALREADY_EXISTS|_EXISTS|_DUPLICATE|_CONFLICT|_ALREADY_POSTED|_ALREADY_RECORDED|_ALREADY_RECEIVED|_ALREADY_LINKED|_ALREADY_LOCKED|_RESERVED|_ATTACHED)$/, 'conflict'],
+  [/(_UNAVAILABLE|_SERVICE_UNAVAILABLE|_STORAGE_UNAVAILABLE)$/, 'unavailable'],
+  [/(_TOO_LONG|_TOO_MANY|_LIMIT_EXCEEDED|_LIMIT|_EXCEEDED|CAPACITY)/, 'tooMany'],
+  [/(_PENDING|_IN_PROGRESS|_SYNC_PENDING)$/, 'pending'],
+  [/(_MISMATCH|_INVALID|_INVALID_RANGE|_DATE_RANGE_INVALID|_OUT_OF_SEASON|_OUT_OF_WORK_AREA|_IN_FUTURE|_IN_PAST|^INVALID_)/, 'invalid'],
+];
+
+export function translateApiCode(code?: string): string | undefined {
+  if (!code) return undefined;
+  const exact = `errors.${code}`;
+  if (i18n.exists(exact)) return i18n.t(exact);
+  for (const [pattern, kind] of KIND_RULES) {
+    if (!pattern.test(code)) continue;
+    const key = `errorsByKind.${kind}`;
+    if (i18n.exists(key)) return i18n.t(key);
   }
   return undefined;
 }
