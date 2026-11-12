@@ -12,8 +12,11 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-/** Cổng Gateway (YARP) khi chạy `docker compose up` ở máy dev. */
-const GATEWAY_PORT = 6102;
+/**
+ * Cổng Gateway (YARP) khi chạy `docker compose up` ở máy dev.
+ * Đổi bằng `EXPO_PUBLIC_GATEWAY_PORT` trong `.env` (xem `.env.example`).
+ */
+const GATEWAY_PORT = Number(process.env.EXPO_PUBLIC_GATEWAY_PORT ?? 6102);
 
 /**
  * Host của Metro dev server (vd `192.168.1.10:8081`). Trên máy thật/emulator

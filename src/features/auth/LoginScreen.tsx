@@ -22,7 +22,9 @@ import { DEMO_EMAILS, DEMO_PASSWORD } from '../../api';
 import { colors, radius, spacing } from '../../theme/tokens';
 
 // Ảnh nền mùa Giáng sinh — dùng cùng nguồn với webapp.
+// Đổi được bằng `EXPO_PUBLIC_LOGIN_BG_URL` trong `.env`.
 const BG_IMAGE =
+  process.env.EXPO_PUBLIC_LOGIN_BG_URL ??
   'https://cdn2.fptshop.com.vn/unsafe/800x0/Hinh_nen_Power_Point_Giang_sinh_2_f5da9b6b32.jpg';
 
 export function LoginScreen() {
@@ -121,18 +123,23 @@ export function LoginScreen() {
             />
           </Card>
 
-          <AppText variant="sub" style={styles.demoTitle}>
-            {t('login.demoAccounts', { password: DEMO_PASSWORD })}
-          </AppText>
-          <View style={styles.chips}>
-            {DEMO_EMAILS.map((e) => (
-              <Pressable key={e} onPress={() => setEmail(e)} style={styles.chip}>
-                <AppText variant="mono" color={colors.pine}>
-                  {e}
-                </AppText>
-              </Pressable>
-            ))}
-          </View>
+          {/* Gợi ý tài khoản seed — chỉ hiện khi `.env` có EXPO_PUBLIC_DEMO_PASSWORD. */}
+          {DEMO_PASSWORD ? (
+            <>
+              <AppText variant="sub" style={styles.demoTitle}>
+                {t('login.demoAccounts', { password: DEMO_PASSWORD })}
+              </AppText>
+              <View style={styles.chips}>
+                {DEMO_EMAILS.map((e: string) => (
+                  <Pressable key={e} onPress={() => setEmail(e)} style={styles.chip}>
+                    <AppText variant="mono" color={colors.pine}>
+                      {e}
+                    </AppText>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

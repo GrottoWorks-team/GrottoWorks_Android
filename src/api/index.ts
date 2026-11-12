@@ -84,8 +84,14 @@ export { ApiError, API_BASE } from './client';
 export const isRealApiActive = () => true;
 
 // Tài khoản seed của BE, gợi ý sẵn trên màn đăng nhập (`ACCOUNTS.md`).
-export const DEMO_PASSWORD = 'GxThanhTam@2026';
-export const DEMO_EMAILS = ['tram.do@giaoxuthanhtam.org.vn', 'bao.huynh@giaoxuthanhtam.org.vn'];
+// Đọc từ `.env` (EXPO_PUBLIC_*) — xem `.env.example`; fallback là seed mặc định.
+export const DEMO_PASSWORD: string = process.env.EXPO_PUBLIC_DEMO_PASSWORD ?? '';
+const DEMO_EMAIL_RAW: string =
+  process.env.EXPO_PUBLIC_DEMO_EMAILS ??
+  'tram.do@giaoxuthanhtam.org.vn,bao.huynh@giaoxuthanhtam.org.vn';
+export const DEMO_EMAILS: string[] = DEMO_EMAIL_RAW.split(',')
+  .map((email: string) => email.trim())
+  .filter(Boolean);
 
 export type SessionUser = User;
 

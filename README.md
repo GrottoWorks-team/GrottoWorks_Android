@@ -51,6 +51,7 @@ TNV xem "Đang tuyển" ──► gửi đăng ký (VolunteerReg PENDING)
 ```bash
 cd grottoworks_mobile
 npm install          # nếu chưa cài
+cp .env.example .env # cấu hình theo máy (không commit)
 npm start            # khởi động Metro dev server
 ```
 
@@ -59,6 +60,20 @@ Sau đó:
 - **Trên điện thoại:** mở **Expo Go** và quét mã QR hiện trong terminal.
 - **Trên emulator:** nhấn `a` (Android) hoặc `i` (iOS, cần macOS).
 - **Trên web (xem nhanh):** `npm run web` (mặc định cổng 8081).
+
+### Biến môi trường (`.env`)
+
+Mọi cấu hình theo máy nằm trong `.env` (không commit — mẫu ở `.env.example`).
+Expo chỉ nhúng các biến có tiền tố `EXPO_PUBLIC_`; **sửa env phải restart Metro
+với `-c`** (`npx expo start -c`) để xoá cache.
+
+| Biến | Mặc định | Ý nghĩa |
+|---|---|---|
+| `EXPO_PUBLIC_GATEWAY_PORT` | `6102` | Cổng Gateway dùng khi tự suy ra base URL (web / emulator / IP LAN của Metro). |
+| `EXPO_PUBLIC_API_URL` | *(trống)* | Base URL đầy đủ, ghi đè hoàn toàn cách suy ra ở trên (vd `http://192.168.1.10:6102/api/v1`). |
+| `EXPO_PUBLIC_DEMO_PASSWORD` | *(trống)* | Mật khẩu tài khoản seed để gợi ý ở màn đăng nhập. Trống ⇒ ẩn khối gợi ý. |
+| `EXPO_PUBLIC_DEMO_EMAILS` | 2 email seed | Danh sách email gợi ý, phân tách bằng dấu phẩy. |
+| `EXPO_PUBLIC_LOGIN_BG_URL` | *(trống)* | Ảnh nền màn đăng nhập; trống ⇒ dùng ảnh mặc định trong code. |
 
 ### Backend (API Gateway)
 
@@ -72,7 +87,8 @@ Gateway tắt thì app báo lỗi mất kết nối thay vì hiện dữ liệu 
 - **Điện thoại / emulator:** app tự lấy IP LAN của máy đang chạy Metro
   (`Constants.expoConfig.hostUri`) rồi trỏ tới cổng 6102 của máy đó — điện thoại
   và máy tính phải cùng một mạng LAN.
-- **Khác mạng / BE ở máy khác:** chỉ định rõ base URL:
+- **Khác mạng / BE ở máy khác:** chỉ định rõ base URL trong `.env`
+  (`EXPO_PUBLIC_API_URL=http://192.168.1.10:6102/api/v1`) hoặc inline:
 
   ```bash
   EXPO_PUBLIC_API_URL=http://192.168.1.10:6102/api/v1 npx expo start
@@ -80,7 +96,7 @@ Gateway tắt thì app báo lỗi mất kết nối thay vì hiện dữ liệu 
 
 ## Tài khoản demo
 
-Mật khẩu chung: **`GxThanhTam@2026`** (khớp seed BE).
+Mật khẩu chung: **`GxThanhTam@2026`** (khớp seed BE, đặt qua `EXPO_PUBLIC_DEMO_PASSWORD` trong `.env`).
 
 | Email | Vai trò |
 | --- | --- |
