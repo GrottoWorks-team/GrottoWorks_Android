@@ -123,7 +123,14 @@ export function HomeScreen() {
                   size="sm"
                   label={t('tasks.detail')}
                   style={styles.inviteBtn}
-                  onPress={() => navigation.navigate('Tasks', { screen: 'TaskDetail', params: { taskId: task.id } })}
+                  onPress={() =>
+                    navigation.navigate('Tasks', {
+                      screen: 'TaskDetail',
+                      params: { taskId: task.id },
+                      // Giữ TaskList làm gốc stack ⇒ luôn có nút back.
+                      initial: false,
+                    })
+                  }
                 />
               </Card>
             ))}
@@ -137,7 +144,14 @@ export function HomeScreen() {
               <RegRow
                 key={reg.id}
                 reg={reg}
-                onPress={() => navigation.navigate('Tasks', { screen: 'OpenDetail', params: { taskId: reg.taskId } })}
+                  onPress={() =>
+                    navigation.navigate('Tasks', {
+                      screen: 'OpenDetail',
+                      params: { taskId: reg.taskId },
+                      // Giữ TaskList làm gốc stack ⇒ luôn có nút back.
+                      initial: false,
+                    })
+                  }
               />
             ))}
           </View>
@@ -156,7 +170,14 @@ export function HomeScreen() {
                   size="sm"
                   label={t('open.register')}
                   style={styles.inviteBtn}
-                  onPress={() => navigation.navigate('Tasks', { screen: 'OpenDetail', params: { taskId: task.id } })}
+                  onPress={() =>
+                    navigation.navigate('Tasks', {
+                      screen: 'OpenDetail',
+                      params: { taskId: task.id },
+                      // Giữ TaskList làm gốc stack ⇒ luôn có nút back.
+                      initial: false,
+                    })
+                  }
                 />
               </Card>
             ))}

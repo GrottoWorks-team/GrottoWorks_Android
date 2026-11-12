@@ -6,10 +6,17 @@ import { TaskListScreen } from '../features/volunteer/TaskListScreen';
 import { TaskDetailScreen } from '../features/volunteer/TaskDetailScreen';
 import { OpenTaskDetailScreen } from '../features/volunteer/OpenTaskDetailScreen';
 import { TaskModelScreen } from '../features/volunteer/TaskModelScreen';
+import { HeaderBack } from './HeaderBack';
 import { colors } from '../theme/tokens';
 import type { TasksStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<TasksStackParamList>();
+
+// Màn chi tiết có thể là màn ĐẦU của stack (mở từ tab Trang chủ) → native-stack sẽ ẩn
+// nút back mặc định. Dùng `headerLeft` riêng để luôn có lối quay lại.
+const DETAIL_OPTIONS = {
+  headerLeft: () => <HeaderBack />,
+};
 
 export function TasksNavigator() {
   const { t } = useTranslation();
@@ -26,12 +33,12 @@ export function TasksNavigator() {
       <Stack.Screen
         name="TaskDetail"
         component={TaskDetailScreen}
-        options={{ title: t('tasks.detail') }}
+        options={{ ...DETAIL_OPTIONS, title: t('tasks.detail') }}
       />
       <Stack.Screen
         name="OpenDetail"
         component={OpenTaskDetailScreen}
-        options={{ title: t('open.detail') }}
+        options={{ ...DETAIL_OPTIONS, title: t('open.detail') }}
       />
       <Stack.Screen
         name="TaskModel"
