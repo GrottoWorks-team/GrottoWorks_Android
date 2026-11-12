@@ -10,8 +10,7 @@ Xây dựng bằng **Expo (SDK 58) + React Native + TypeScript + React Navigatio
 
 | Tab | Chức năng |
 | --- | --- |
-| **Nhiệm vụ** | 2 sub-tab: **Việc của tôi** (lọc chờ/đang làm/xong, chi tiết, **nhận / từ chối kèm lý do**, gửi duyệt hoàn thành, **xem lớp mô hình 3D gắn với nhiệm vụ**) và **Đang tuyển** (task mở đăng ký, sắp theo độ khớp kỹ năng, **gửi đơn đăng ký**) |
-| **Khu vực** | **Read-only**: danh sách khu vực của mùa đang chạy → chi tiết (cấp, ngày bắt đầu/hạn, mô tả) → nhiệm vụ thuộc khu vực; bấm việc của tôi mở chi tiết nhiệm vụ, việc đang tuyển mở màn đăng ký |
+| **Nhiệm vụ** | 2 sub-tab: **Việc của tôi** (lọc chờ/đang làm/xong, chi tiết, **nhận / từ chối kèm lý do**, gửi duyệt hoàn thành, **xem lớp mô hình 3D gắn với nhiệm vụ**) và **Đang tuyển** (task mở đăng ký, sắp theo độ khớp kỹ năng, **gửi đơn đăng ký**, lọc **Khu vực của tôi** / **Khu vực khác** trong giáo xứ) |
 | **Giờ đóng góp** | **Lịch tháng** đánh dấu ngày có giờ đóng góp / có việc đến hạn; chọn ngày xem giờ đóng góp + việc cần làm; **xin vào ca / kết thúc ca** (BE `check-in-requests` → trưởng khu duyệt), yêu cầu chỉnh giờ |
 | **Trang chủ** | **Giờ đóng góp tuần (nổi bật)**, lời mời đang chờ, đơn đăng ký của tôi, gợi ý nhiệm vụ đang tuyển, nhiệm vụ đang làm |
 | **Thông báo** | Thông báo in-app của TNV (mời phân công, **kết quả đăng ký**, ghi giờ…) |
@@ -109,7 +108,7 @@ src/
 ├── features/     # theo vai trò: auth/ (login), volunteer/ (màn TNV + TaskModelScreen)
 ├── lib/          # i18n, format, notificationTray (đẩy thông báo ra khay hệ điều hành)
 ├── locales/      # vi.json (mặc định) + en.json
-├── navigation/   # Root stack, tabs (6 tab: Nhiệm vụ · Khu vực · Giờ · Trang chủ · Thông báo · Hồ sơ), tasks/areas stack + types
+├── navigation/   # Root stack, tabs (5 tab: Nhiệm vụ · Giờ · Trang chủ · Thông báo · Hồ sơ), tasks/profile stack + types
 ├── notifications/ # NotificationBridge — poll /notifications → phát notification ra khay
 ├── theme/        # design tokens Golden Winter
 └── types/        # domain model (đồng bộ webapp)
@@ -142,7 +141,7 @@ src/
 - **Nghiệp vụ phân công:** logic `assignees` ⇄ `assignments` (PENDING/ACCEPTED/
   DECLINED) là **lời mời leader → TNV**; `VolunteerReg` (PENDING/APPROVED/
   REJECTED) là **đơn TNV → leader**. Cả hai ở `src/types/index.ts`.
-- **Khu vực (read-only):** dùng `GET /seasons` → `/seasons/{id}/work-areas` → `/work-areas/{id}/tasks`.
+- **Lọc khu vực khi tìm việc:** sub-tab "Đang tuyển" lọc **Khu vực của tôi** (khu thuộc cộng đoàn của tôi + khu tôi đã có việc) và **Khu vực khác** (cùng giáo xứ) — dùng `GET /seasons/{id}/work-areas` để map `areaId → communityId`.
 - **Mô hình 3D của TNV:** màn `TaskModelScreen` chỉ hiển thị **(các) lớp có `taskIds` chứa nhiệm vụ đã nhận** (WebView + canvas 2D, scene mock trong `features/volunteer/mockScene.ts`) vì BE chưa có `GET /work-areas/{id}/design-scene` — xem `GrottoWorks_BE/docs/BE-TODO-demo-2026-11-10.md` §3.
 - **Mở rộng backend:** thêm hàm trong `src/api/real.ts` rồi export qua `src/api/index.ts` — giữ nguyên `VolunteerReg`/`TaskAssignment` và các hook trong `src/api/hooks.ts`.
 - **Vào ca / bắt đầu việc:** TNV bấm **Bắt đầu làm việc** (chi tiết nhiệm vụ) →

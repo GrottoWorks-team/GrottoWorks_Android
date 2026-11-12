@@ -6,22 +6,17 @@ export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
 };
 
-// 6 tab: Nhiệm vụ · Khu vực · Trang chủ · Giờ đóng góp · Thông báo · Hồ sơ.
+// 5 tab: Nhiệm vụ · Giờ đóng góp · Trang chủ · Thông báo · Hồ sơ.
 // Tab Nhiệm vụ chứa stack lồng → khai báo NavigatorScreenParams để điều hướng
-// tới TaskDetail/OpenDetail từ tab khác (ví dụ Trang chủ, Khu vực).
+// tới TaskDetail/OpenDetail từ tab khác (ví dụ Trang chủ).
+// (Tab "Khu vực" đã bỏ 12/11/2026 — lọc theo khu vực nằm ngay trong sub-tab
+// "Đang tuyển" của tab Nhiệm vụ.)
 export type MainTabParamList = {
   Tasks: NavigatorScreenParams<TasksStackParamList>;
-  Areas: NavigatorScreenParams<AreasStackParamList>;
   Timesheets: undefined;
   Home: undefined;
   Notifications: undefined;
   Profile: NavigatorScreenParams<ProfileStackParamList>;
-};
-
-// Stack lồng trong tab Khu vực: danh sách → chi tiết (read-only).
-export type AreasStackParamList = {
-  AreaList: undefined;
-  AreaDetail: { areaId: string };
 };
 
 // Stack lồng trong tab Nhiệm vụ: danh sách (2 sub-tab: việc của tôi / đang
