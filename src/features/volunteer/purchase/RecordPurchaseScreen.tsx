@@ -47,10 +47,12 @@ export function RecordPurchaseScreen() {
   const [date, setDate] = useState(today());
   const [lines, setLines] = useState<Record<string, LineState>>({});
   const [error, setError] = useState<string | null>(null);
+  const [seeded, setSeeded] = useState(false);
 
   // Nạp số lượng/đơn giá gợi ý đúng MỘT lần khi đơn tải xong: mặc định mua đủ
   // số lượng yêu cầu, đơn giá suy ra từ dự toán để người mua chỉ cần sửa khi lệch.
-  const [seeded, setSeeded] = useState(false);
+  // (Đặt state trong lúc render là pattern React khuyến nghị cho derived state —
+  // rule `react-hooks/set-state-in-effect` cấm làm việc này trong useEffect.)
   if (request && !seeded) {
     setSeeded(true);
     setLines(
