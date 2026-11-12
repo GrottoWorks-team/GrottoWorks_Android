@@ -130,6 +130,12 @@ export function OpenTaskDetailScreen() {
 
         <Card style={styles.card}>
           <Field label={t('tasks.area')} value={area?.name ?? '—'} />
+          {/* 13/11/2026: việc của khu khác chỉ hiện khi khu đó đang xin hỗ trợ. */}
+          {user?.communityId && area?.communityId !== user.communityId ? (
+            <AppText variant="sub" color={colors.pine}>
+              {t('tasks.supportRequestedHint')}
+            </AppText>
+          ) : null}
           <Field label={t('tasks.estimateHours')} value={`${task.estimateHours} ${t('tasks.hours')}`} />
           <Field label={t('tasks.volunteersNeeded')} value={String(task.volunteersNeeded)} />
           <Field label={t('tasks.taken')} value={String(task.assignees.length)} />

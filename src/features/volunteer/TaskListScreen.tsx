@@ -39,7 +39,7 @@ export function TaskListScreen() {
 
   const tasksQuery = useMyTasks(volunteerId);
   const { data: tasks = [], isPending } = tasksQuery;
-  const openQuery = useOpenTasks(volunteerId);
+  const openQuery = useOpenTasks(volunteerId, user?.communityId);
   const { data: openTasks = [], isPending: openPending } = openQuery;
   const areasQuery = useAreas();
   const { data: areas = [] } = areasQuery;

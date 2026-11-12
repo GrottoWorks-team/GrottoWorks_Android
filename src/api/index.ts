@@ -193,8 +193,8 @@ export async function getTask(id: string): Promise<Task> {
 // ── Đăng ký tình nguyện ─────────────────────────────────────────────────────
 // Task đang tuyển: BE trả `OPEN` theo từng khu vực và đã loại các task TNV có
 // phân công/đơn đăng ký (`GET /users/me/assignments`).
-export async function listOpenTasks(_volunteerId: string): Promise<Task[]> {
-  return openTasksReal();
+export async function listOpenTasks(_volunteerId: string, communityId?: string): Promise<Task[]> {
+  return openTasksReal(communityId);
 }
 
 /**

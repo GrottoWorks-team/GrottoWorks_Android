@@ -40,7 +40,7 @@ export function HomeScreen() {
   const { data: timesheets = [] } = timesheetsQuery;
   const regsQuery = useMyRegs(volunteerId);
   const { data: regs = [] } = regsQuery;
-  const openTasksQuery = useOpenTasks(volunteerId);
+  const openTasksQuery = useOpenTasks(volunteerId, user?.communityId);
   const { data: openTasks = [] } = openTasksQuery;
   const areasQuery = useAreas();
   const { data: areas = [] } = areasQuery;

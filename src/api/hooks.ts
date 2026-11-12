@@ -170,10 +170,10 @@ export const useMyTasks = (volunteerId: string) =>
     staleTime: 0,
   });
 
-export const useOpenTasks = (volunteerId: string) =>
+export const useOpenTasks = (volunteerId: string, communityId?: string) =>
   useQuery({
-    queryKey: keys.openTasks(volunteerId),
-    queryFn: () => listOpenTasks(volunteerId),
+    queryKey: [...keys.openTasks(volunteerId), communityId ?? ''] as const,
+    queryFn: () => listOpenTasks(volunteerId, communityId),
     enabled: Boolean(volunteerId),
     staleTime: 0,
   });

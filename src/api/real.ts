@@ -525,15 +525,28 @@ export async function areaTasksReal(workAreaId: string): Promise<Task[]> {
   return dtos.map(toTask);
 }
 
+/** Yêu cầu hỗ trợ (TaskExecution `/support-requests`) — chỉ cần vị trí + task để lọc "đang tuyển". */
+export interface SupportRequestDto {
+  id: string;
+  workAreaId: string;
+  status: string;
+  supportType?: string;
+  positions: { id: string; name: string; taskId?: string | null }[];
+}
+
 /**
- * Task đang tuyển = task ở trạng thái OPEN trên mọi khu vực. BE chỉ cho nộp đơn
- * khi task đang OPEN (`EnsurePlanningCanBeUpdated` → `TASK_INVALID_STATE`), nên
- * KHÔNG gộp task đang thực hiện (IN_PROGRESS)/chưa bắt đầu (NOT_STARTED).
+ * Task đang tuyển cho tình nguyện viên (13/11/2026):
+ *   • việc OPEN của **khu mình** (khu thuộc cộng đoàn của tôi), và
+ *   • việc OPEN của **khu khác** chỉ khi khu đó đang **yêu cầu hỗ trợ** cho chính việc đó
+ *     (yêu cầu hỗ trợ đã phát hành, vị trí có `taskId` trùng).
+ * BE chỉ cho nộp đơn khi task đang OPEN, và sẽ trả `TASK_APPLICATION_OUTSIDE_AREA` nếu khu khác
+ * không xin hỗ trợ — nhờ vậy danh sách và luật của BE khớp nhau.
  */
-export async function openTasksReal(): Promise<Task[]> {
-  const [areas, mine] = await Promise.all([
+export async function openTasksReal(communityId?: string): Promise<Task[]> {
+  const [areas, mine, supportRequests] = await Promise.all([
     listAreasReal(),
     myAssignmentsReal().catch(() => [] as AssignmentDto[]),
+    supportRequestsReal().catch(() => [] as SupportRequestDto[]),
   ]);
   // Đã có phân công/đơn đăng ký (trừ khi đã từ chối/huỷ) → không còn trong "Đang tuyển".
   const activeTaskIds = new Set(
@@ -541,16 +554,36 @@ export async function openTasksReal(): Promise<Task[]> {
       .filter((row) => !['DECLINED', 'CANCELLED'].includes((row.status ?? '').toUpperCase()))
       .map((row) => row.taskId),
   );
+  // Việc mà khu đang nhờ hỗ trợ (vị trí gắn task) → người khu khác được thấy để đăng ký.
+  const supportTaskIds = new Set(
+    supportRequests
+      .filter((row) => ['PUBLISHED', 'PARTIALLY_FULFILLED'].includes((row.status ?? '').toUpperCase()))
+      .flatMap((row) => row.positions.map((position) => position.taskId))
+      .filter((taskId): taskId is string => Boolean(taskId)),
+  );
+  const myAreaIds = new Set(
+    communityId ? areas.filter((area) => area.communityId === communityId).map((area) => area.id) : [],
+  );
+  // Chưa khai cộng đoàn → giữ hành vi cũ (coi mọi khu của giáo xứ là khu mình).
+  const isMyArea = (areaId: string) => (myAreaIds.size > 0 ? myAreaIds.has(areaId) : true);
   const perArea = await Promise.all(
     areas.map((area) => areaTaskDtos(area.id).catch(() => [] as TaskDto[])),
   );
   const open = perArea
     .flat()
     .filter(
-      (dto) => (dto.status ?? '').toUpperCase() === 'OPEN' && !activeTaskIds.has(dto.id),
+      (dto) =>
+        (dto.status ?? '').toUpperCase() === 'OPEN' &&
+        !activeTaskIds.has(dto.id) &&
+        (isMyArea(dto.workAreaId) || supportTaskIds.has(dto.id)),
     )
     .map(toTask);
   return [...new Map(open.map((task) => [task.id, task])).values()];
+}
+
+/** Yêu cầu hỗ trợ trong giáo xứ: `GET /support-requests?size=100`. */
+export async function supportRequestsReal(): Promise<SupportRequestDto[]> {
+  return await http<SupportRequestDto[]>('/support-requests?size=100&descending=true');
 }
 
 /** DTO gốc của task theo khu vực (giữ nguyên `status` trước khi map). */
