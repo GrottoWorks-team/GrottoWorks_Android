@@ -66,8 +66,10 @@ export function TimesheetScreen() {
   const openSession = timesheets.find((ts) => ts.status === 'OPEN');
   const totalHours = timesheets.reduce((s, ts) => s + ts.hours, 0);
   // Việc đã nhận và đã phát hành (chưa nộp duyệt) → được phép xin vào ca.
+  // Việc ĐI MUA không vào ca/check-in: chỉ cần mua và ghi nhận trước hạn.
   const startableTask = tasks.find(
     (task) =>
+      task.taskType !== 'PURCHASE' &&
       myAssignmentStatus(task, volunteerId) === 'ACCEPTED' &&
       (task.backendStatus === 'NOT_STARTED' || task.backendStatus === 'IN_PROGRESS'),
   );

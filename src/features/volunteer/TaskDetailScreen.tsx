@@ -108,6 +108,9 @@ export function TaskDetailScreen() {
 
   const area = areas.find((a) => a.id === task.areaId);
   const myStatus = myAssignmentStatus(task, volunteerId);
+  // Việc ĐI MUA không có công trình để xem 3D, không cần vào ca/check-in và không nộp tiến độ:
+  // việc tự COMPLETED khi trưởng ban vật tư xác nhận giao hàng (BE `task.purchase-task` reconcile).
+  const isPurchase = task.taskType === 'PURCHASE';
   // Trưởng nhóm nhiệm vụ: BE trả `teamLeaderAssignmentId`; so với assignment của chính TNV.
   const hasTeamLeader = Boolean(task.teamLeaderAssignmentId);
   const isTeamLeader = Boolean(
@@ -178,6 +181,7 @@ export function TaskDetailScreen() {
     (row) => row.assignmentId === myAssignmentId,
   );
   const canStartWork =
+    !isPurchase &&
     myStatus === 'ACCEPTED' &&
     (task.backendStatus === 'NOT_STARTED' || task.backendStatus === 'IN_PROGRESS');
 
@@ -222,6 +226,7 @@ export function TaskDetailScreen() {
   };
 
   const canSubmitReview =
+    !isPurchase &&
     myStatus === 'ACCEPTED' &&
     (task.status === 'DOING' || task.status === 'REVISE') &&
     (!hasTeamLeader || isTeamLeader);
@@ -264,7 +269,7 @@ export function TaskDetailScreen() {
         {/* Mô hình 3D của khu vực — TNV xem mô hình + lớp thi công gắn với nhiệm vụ
             đã nhận. Mở MÀN HÌNH TRONG APP (không nhảy ra trình duyệt). Dữ liệu
             hiện là scene mock vì BE chưa có API mô hình 3D. */}
-        {myStatus === 'ACCEPTED' && task.areaId ? (
+        {myStatus === 'ACCEPTED' && task.areaId && !isPurchase ? (
           <Card style={styles.card}>
             <AppText variant="label">{t('tasks.model3dTitle')}</AppText>
             <AppText variant="sub">{t('tasks.model3dHint')}</AppText>
