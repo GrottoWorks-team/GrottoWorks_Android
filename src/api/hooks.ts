@@ -26,6 +26,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   getPurchaseRequest,
+  getTaskStartEligibility,
   listMyPurchaseTasks,
   offerLoanItem,
   pledgeMaterial,
@@ -132,6 +133,18 @@ export const usePurchaseRequest = (requestId?: string) =>
     queryKey: keys.purchaseRequest(requestId ?? ''),
     queryFn: () => getPurchaseRequest(requestId ?? ''),
     enabled: Boolean(requestId),
+    staleTime: 0,
+  });
+
+/**
+ * Điều kiện bắt đầu việc (12/11/2026): tới giờ bắt đầu, đủ thành viên nhận việc, đã cấp đủ vật tư.
+ * `staleTime: 0` vì trưởng khu / trưởng ban vật tư thay đổi dữ liệu liên tục trong lúc chuẩn bị.
+ */
+export const useTaskStartEligibility = (taskId?: string) =>
+  useQuery({
+    queryKey: ['tasks', 'start-eligibility', taskId ?? ''] as const,
+    queryFn: () => getTaskStartEligibility(taskId ?? ''),
+    enabled: Boolean(taskId),
     staleTime: 0,
   });
 

@@ -29,6 +29,7 @@ import {
   useTask,
   useTaskMaterials,
   useTaskProgress,
+  useTaskStartEligibility,
 } from '../../api/hooks';
 import { useRefreshControl } from '../../lib/useRefreshControl';
 import { colors, radius, spacing } from '../../theme/tokens';
@@ -64,6 +65,8 @@ export function TaskDetailScreen() {
   // (trước 12/11/2026 TNV không thấy ở đây, chỉ thấy trong màn Ghi nhận mua).
   const purchaseRequestId = task?.purchaseRequestId ?? undefined;
   const { data: purchaseRequest } = usePurchaseRequest(purchaseRequestId);
+  // Điều kiện bắt đầu việc: tới giờ bắt đầu / đủ thành viên / đã cấp đủ vật tư (12/11/2026).
+  const { data: startEligibility } = useTaskStartEligibility(params.taskId);
   const refresh = useRefreshControl([
     taskQuery.refetch,
     areasQuery.refetch,
@@ -184,6 +187,9 @@ export function TaskDetailScreen() {
     !isPurchase &&
     myStatus === 'ACCEPTED' &&
     (task.backendStatus === 'NOT_STARTED' || task.backendStatus === 'IN_PROGRESS');
+  // Chưa đủ điều kiện (giờ bắt đầu / thành viên / vật tư) → không cho bấm vào ca.
+  const startBlockers = startEligibility?.blockers ?? [];
+  const startBlocked = startBlockers.length > 0;
 
   const onCancelRequest = async () => {
     if (!pendingRequest) return;
@@ -405,7 +411,25 @@ export function TaskDetailScreen() {
                     ? t('tasks.workInProgress')
                     : t('tasks.workNotStarted')}
             </AppText>
-            {openSession ? (
+            {startBlocked ? (
+              <View style={styles.blockers}>
+                <AppText variant="label" color={colors.dangerFg}>
+                  {t('tasks.startBlockedTitle')}
+                </AppText>
+                {startBlockers.map((blocker) => (
+                  <AppText key={blocker.code} variant="sub" style={styles.blockerItem}>
+                    • {t(`errors.${blocker.code}`, { defaultValue: blocker.detail })}
+                  </AppText>
+                ))}
+                {startEligibility && startEligibility.materialShortages.length > 0 ? (
+                  <AppText variant="sub" style={styles.blockerItem}>
+                    {t('tasks.startBlockedMaterials', {
+                      count: startEligibility.materialShortages.length,
+                    })}
+                  </AppText>
+                ) : null}
+              </View>
+            ) : openSession ? (
               <Button
                 label={t('timesheets.checkOutAction')}
                 variant="danger"
@@ -627,12 +651,13 @@ const styles = StyleSheet.create({
   inviteCard: { borderColor: colors.pendingFg },
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   flex1: { flex: 1 },
-  purchaseRow: {
-    borderTopWidth: StyleSheet.hairlineWidth,
+  purchaseRow: {    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.hairline,
     paddingTop: spacing.sm,
     gap: 2,
   },
+  blockers: { gap: 4, marginTop: spacing.xs },
+  blockerItem: { color: colors.dangerFg },
   purchaseName: { flexShrink: 1 },
   purchaseAction: { marginTop: spacing.sm },
   statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

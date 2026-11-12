@@ -15,6 +15,7 @@ import type {
   PurchaseRequestDetailDto,
   PurchaseRequestItemDto,
   PurchaseTaskDto,
+  TaskStartEligibilityDto,
 } from './real';
 import {
   activeSeasonReal,
@@ -54,6 +55,7 @@ import {
   submitTaskReviewReal,
   taskDetailReal,
   taskProgressReal,
+  taskStartEligibilityReal,
   updateNotificationPreferencesReal,
   updateProfileReal,
   uploadFileToStorage,
@@ -515,11 +517,17 @@ export type {
   PurchaseRequestDetailDto,
   PurchaseRequestItemDto,
   PurchaseTaskDto,
+  TaskStartEligibilityDto,
 };
 
 /** Việc đi mua còn hiệu lực của tôi: `GET /users/me/tasks?taskType=PURCHASE`. */
 export async function listMyPurchaseTasks(): Promise<PurchaseTaskDto[]> {
   return myPurchaseTasksReal();
+}
+
+/** Điều kiện bắt đầu việc: `GET /tasks/{taskId}/start-eligibility`. */
+export async function getTaskStartEligibility(taskId: string): Promise<TaskStartEligibilityDto> {
+  return taskStartEligibilityReal(taskId);
 }
 
 /** Đơn mua cần ghi nhận: `GET /purchase-requests/{requestId}`. */

@@ -1119,6 +1119,24 @@ async function evidenceBody(
   };
 }
 
+/** `GET /tasks/{taskId}/start-eligibility` — điều kiện bắt đầu việc (12/11/2026). */
+export interface TaskStartEligibilityDto {
+  taskId: string;
+  taskType: string;
+  status: string;
+  startAt?: string | null;
+  acceptedMembers: number;
+  requiredMembers: number;
+  materialsKnown: boolean;
+  materialShortages: { materialId: string; requiredQuantity: number; allocatedQuantity: number }[];
+  canStart: boolean;
+  blockers: { code: string; detail: string }[];
+}
+
+export async function taskStartEligibilityReal(taskId: string): Promise<TaskStartEligibilityDto> {
+  return await http<TaskStartEligibilityDto>(`/tasks/${taskId}/start-eligibility`);
+}
+
 /** GET /api/v1/tasks/{taskId}/progress — lịch sử tiến độ/nghiệm thu. */
 export async function taskProgressReal(taskId: string): Promise<TaskProgressDto[]> {
   const dtos = await http<TaskProgressDto[]>(`/tasks/${taskId}/progress?size=50`);
