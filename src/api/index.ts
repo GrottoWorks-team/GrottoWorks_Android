@@ -56,6 +56,7 @@ import {
   taskProgressReal,
   updateNotificationPreferencesReal,
   updateProfileReal,
+  uploadFileToStorage,
 } from './real';
 import { listApplications, upsertApplication } from './applicationsCache';
 import type {
@@ -533,9 +534,16 @@ export interface RecordPurchaseInput {
   supplierName?: string;
   purchaseDate?: string;
   items: { purchaseRequestItemId: string; purchasedQuantity: number; unitPrice: number }[];
+  /** File hoá đơn đã upload bằng `uploadPurchaseReceipt` (BE: `receipts: [{id}]`). */
+  receiptFileIds?: string[];
 }
 
 /** Ghi nhận lần mua: `POST /purchase-requests/{requestId}/purchases` (kho CHƯA tăng). */
 export async function recordPurchase(input: RecordPurchaseInput): Promise<PurchaseDto> {
   return recordPurchaseReal(input);
+}
+
+/** Upload 1 ảnh/PDF hoá đơn (BE: purpose `PURCHASE_RECEIPT`, ≤15MB) → `fileId`. */
+export async function uploadPurchaseReceipt(uri: string): Promise<string> {
+  return uploadFileToStorage(uri, 'PurchaseReceipt');
 }

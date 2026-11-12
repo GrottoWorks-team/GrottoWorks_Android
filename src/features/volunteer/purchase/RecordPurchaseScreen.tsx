@@ -1,4 +1,4 @@
-// Ghi nhận lần mua thật (F-RES-09, BR-26/BR-30): số lượng, đơn giá, nhà cung cấp.
+// Ghi nhận lần mua thật (F-RES-09, BR-26/BR-30): số lượng, đơn giá, nhà cung cấp + **ảnh hoá đơn**.
 // BE KHÔNG nhập kho ở bước này; kho khu chỉ tăng khi trưởng ban vật tư xác nhận
 // giao hàng (`POST /purchases/{id}/confirm-delivery`).
 import { useState } from 'react';
@@ -13,8 +13,9 @@ import { Card } from '../../../components/Card';
 import { Button } from '../../../components/Button';
 import { ScreenHeader } from '../../../components/ScreenHeader';
 import { EmptyState } from '../../../components/EmptyState';
+import { PhotoPicker } from '../../../components/PhotoPicker';
 import { useToast } from '../../../components/Toast';
-import { ApiError } from '../../../api';
+import { ApiError, uploadPurchaseReceipt } from '../../../api';
 import { usePurchaseRequest, useRecordPurchase } from '../../../api/hooks';
 import { colors, radius, spacing } from '../../../theme/tokens';
 import type { ProfileStackParamList } from '../../../navigation/types';
@@ -46,6 +47,9 @@ export function RecordPurchaseScreen() {
   const [supplier, setSupplier] = useState('');
   const [date, setDate] = useState(today());
   const [lines, setLines] = useState<Record<string, LineState>>({});
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [photoError, setPhotoError] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [seeded, setSeeded] = useState(false);
 
@@ -77,6 +81,34 @@ export function RecordPurchaseScreen() {
 
   const canRecord = request ? RECORDABLE.has((request.status ?? '').toUpperCase()) : false;
 
+  /** Mã lỗi BE (`code` trong ProblemDetails) — `ApiError.message` chỉ có `detail`. */
+  const problemCode = (err: ApiError): string => {
+    const body = err.body as { code?: unknown } | undefined;
+    return typeof body?.code === 'string' ? body.code : '';
+  };
+
+  /** Lỗi upload (mạng/MinIO/loại tệp) nói rõ để TNV biết phải làm gì. */
+  const describeError = (err: unknown): string => {
+    if (err instanceof ApiError) {
+      const code = problemCode(err);
+      if (err.status === 403 && code !== 'FILE_ACCESS_DENIED') return t('purchase.notBuyer');
+      if (code === 'FILE_UPLOAD_NOT_ALLOWED' || code === 'FILE_CONTENT_TYPE_MISMATCH') {
+        return t('purchase.uploadNotAllowed');
+      }
+      if (code === 'FILE_STORAGE_UNAVAILABLE' || err.message.includes('EVIDENCE_UPLOAD_FAILED')) {
+        return t('purchase.uploadFailed');
+      }
+      if (err.message.includes('EVIDENCE_UPLOAD_SIZE_UNKNOWN')) return t('purchase.uploadUnreadable');
+      if (!code && err.status === 0) return t('purchase.uploadFailed');
+      if (err.message) return err.message;
+    }
+    if (err instanceof Error) {
+      if (err.message.includes('EVIDENCE_UPLOAD_FAILED')) return t('purchase.uploadFailed');
+      if (err.message.includes('EVIDENCE_UPLOAD_SIZE_UNKNOWN')) return t('purchase.uploadUnreadable');
+    }
+    return t('common.error');
+  };
+
   const submit = async () => {
     setError(null);
     if (!request) return;
@@ -88,24 +120,31 @@ export function RecordPurchaseScreen() {
       }))
       .filter((line) => line.purchasedQuantity > 0);
     if (items.length === 0) return setError(t('purchase.qtyRequired'));
+    // Hoá đơn là bằng chứng chi phí (BR-26) — bắt buộc ít nhất 1 ảnh.
+    if (photos.length === 0) {
+      setPhotoError(true);
+      return setError(t('purchase.invoiceRequired'));
+    }
 
+    setUploading(true);
     try {
+      // Upload từng ảnh hoá đơn trước (purpose `PurchaseReceipt`), rồi mới ghi nhận.
+      const receiptFileIds: string[] = [];
+      for (const uri of photos) receiptFileIds.push(await uploadPurchaseReceipt(uri));
+
       await record.mutateAsync({
         requestId: request.id,
         supplierName: supplier,
         purchaseDate: date || undefined,
         items,
+        receiptFileIds,
       });
       toast(t('purchase.recorded'));
       navigation.goBack();
     } catch (err) {
-      setError(
-        err instanceof ApiError && err.status === 403
-          ? t('purchase.notBuyer')
-          : err instanceof ApiError && err.message
-            ? err.message
-            : t('common.error'),
-      );
+      setError(describeError(err));
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -198,6 +237,20 @@ export function RecordPurchaseScreen() {
               </AppText>
             </Card>
 
+            <Card style={styles.card}>
+              <PhotoPicker
+                photos={photos}
+                onChange={(next) => {
+                  setPhotos(next);
+                  if (next.length > 0) setPhotoError(false);
+                }}
+                error={photoError}
+                label={t('purchase.invoice')}
+                hint={t('purchase.invoiceHint')}
+                max={5}
+              />
+            </Card>
+
             {!canRecord && (
               <AppText variant="sub" style={styles.warn}>
                 {t('purchase.requestNotApproved', { status: request.status })}
@@ -212,8 +265,8 @@ export function RecordPurchaseScreen() {
             <Button
               label={t('common.save')}
               onPress={() => void submit()}
-              disabled={record.isPending || !canRecord}
-              loading={record.isPending}
+              disabled={uploading || record.isPending || !canRecord}
+              loading={uploading || record.isPending}
               style={styles.submit}
             />
           </>

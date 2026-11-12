@@ -770,6 +770,8 @@ export async function recordPurchaseReal(input: {
   supplierName?: string;
   purchaseDate?: string;
   items: { purchaseRequestItemId: string; purchasedQuantity: number; unitPrice: number }[];
+  /** File hoá đơn đã upload (`uploadFileToStorage(uri, 'PurchaseReceipt')`). */
+  receiptFileIds?: string[];
 }): Promise<PurchaseDto> {
   return await http<PurchaseDto>(`/purchase-requests/${input.requestId}/purchases`, {
     method: 'POST',
@@ -781,6 +783,7 @@ export async function recordPurchaseReal(input: {
         purchasedQuantity: item.purchasedQuantity,
         unitPrice: item.unitPrice,
       })),
+      receipts: (input.receiptFileIds ?? []).map((id) => ({ id })),
     },
   });
 }
@@ -1032,15 +1035,23 @@ const fileNameFor = (uri: string, contentType: string): string => {
 };
 
 /**
- * Upload ảnh minh chứng lên NotificationAudit (MinIO presigned, 3 bước giống web):
+ * Upload ảnh/tệp lên NotificationAudit (MinIO presigned, 3 bước giống web):
  * `POST /files/upload-requests` → `PUT <uploadUrl>` → `POST /files/{id}/complete`.
- * Trả về `fileId` để gắn vào tiến độ/nghiệm thu.
+ * Trả về `fileId` để gắn vào tiến độ/nghiệm thu/hoá đơn.
+ *
+ * `purpose` phải khớp nơi sẽ dùng file: BE chặn nếu khai sai mục đích
+ * (`ProgressEvidence` ≤10MB ảnh; `PurchaseReceipt` ≤15MB ảnh hoặc PDF).
  *
  * Content type lấy từ **file thật** (không đoán theo đuôi URI): URI web là
  * `blob:http://…/<uuid>` không có đuôi, đoán theo đuôi sẽ khai `image/jpeg` cho
  * ảnh PNG → BE chặn `FILE_CONTENT_TYPE_MISMATCH`.
  */
-export async function uploadEvidenceFile(uri: string): Promise<string> {
+export type UploadPurpose = 'ProgressEvidence' | 'ReadinessEvidence' | 'PurchaseReceipt';
+
+export async function uploadFileToStorage(
+  uri: string,
+  purpose: UploadPurpose,
+): Promise<string> {
   const { body, sizeBytes, contentType } = await evidenceBody(uri);
   if (!sizeBytes) throw new Error('EVIDENCE_UPLOAD_SIZE_UNKNOWN');
   const name = fileNameFor(uri, contentType);
@@ -1051,7 +1062,7 @@ export async function uploadEvidenceFile(uri: string): Promise<string> {
       fileName: name,
       contentType,
       sizeBytes,
-      purpose: 'ProgressEvidence',
+      purpose,
       checksum: null,
     },
   });
@@ -1085,6 +1096,11 @@ export async function uploadEvidenceFile(uri: string): Promise<string> {
     body: { checksum: null },
   });
   return intent.fileId;
+}
+
+/** Ảnh minh chứng hoàn thành nhiệm vụ (giữ tên cũ cho các màn đang dùng). */
+export function uploadEvidenceFile(uri: string): Promise<string> {
+  return uploadFileToStorage(uri, 'ProgressEvidence');
 }
 
 /** Thân file để PUT lên MinIO + kích thước & content type **thật** của tệp. */

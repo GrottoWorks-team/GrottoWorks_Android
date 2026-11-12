@@ -17,15 +17,21 @@ interface PhotoPickerProps {
   onChange: (photos: string[]) => void;
   /** Hiển thị cảnh báo đỏ khi chưa có ảnh nào (validate submit). */
   error?: boolean;
+  /** Nhãn riêng (mặc định: “Ảnh minh chứng khu vực đã làm”). */
+  label?: string;
+  /** Dòng gợi ý riêng (mặc định: `tasks.photoEvidenceHint`). */
+  hint?: string;
+  /** Số ảnh tối đa (mặc định 6). */
+  max?: number;
 }
 
-export function PhotoPicker({ photos, onChange, error }: PhotoPickerProps) {
+export function PhotoPicker({ photos, onChange, error, label, hint, max = MAX_PHOTOS }: PhotoPickerProps) {
   const { t } = useTranslation();
 
   const addUris = (uris: string[]) => {
     const merged = [...photos];
     for (const uri of uris) {
-      if (merged.length >= MAX_PHOTOS) break;
+      if (merged.length >= max) break;
       if (!merged.includes(uri)) merged.push(uri);
     }
     onChange(merged);
@@ -55,7 +61,7 @@ export function PhotoPicker({ photos, onChange, error }: PhotoPickerProps) {
       mediaTypes: ['images'],
       quality: 0.6,
       allowsMultipleSelection: true,
-      selectionLimit: MAX_PHOTOS - photos.length,
+      selectionLimit: max - photos.length,
     });
     if (!result.canceled) addUris(result.assets.map((a) => a.uri));
   };
@@ -64,13 +70,13 @@ export function PhotoPicker({ photos, onChange, error }: PhotoPickerProps) {
     onChange(photos.filter((_, i) => i !== index));
   };
 
-  const canAdd = photos.length < MAX_PHOTOS;
+  const canAdd = photos.length < max;
 
   return (
     <View style={styles.wrap}>
-      <AppText variant="label">{t('tasks.photoEvidence')}</AppText>
+      <AppText variant="label">{label ?? t('tasks.photoEvidence')}</AppText>
       <AppText variant="sub" style={styles.hint}>
-        {t('tasks.photoEvidenceHint')}
+        {hint ?? t('tasks.photoEvidenceHint')}
       </AppText>
 
       {photos.length > 0 ? (

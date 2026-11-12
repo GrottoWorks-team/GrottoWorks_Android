@@ -359,6 +359,12 @@
   "purchase.noItems": "Đơn mua này không có dòng vật tư nào",
   "purchase.requestNotApproved": "Đơn đang ở trạng thái {{status}} nên chưa ghi nhận được — cần trưởng khu duyệt trước",
   "purchase.stockHint": "Số lượng chỉ vào kho sau khi trưởng ban vật tư xác nhận giao hàng",
+  "purchase.invoice": "Ảnh hoá đơn",
+  "purchase.invoiceHint": "Chụp hoặc tải ảnh hoá đơn/biên lai đã mua (tối đa 5 ảnh). Hoá đơn là bằng chứng chi phí cho trưởng ban vật tư đối chiếu.",
+  "purchase.invoiceRequired": "Vui lòng đính kèm ít nhất 1 ảnh hoá đơn.",
+  "purchase.uploadFailed": "Không tải được ảnh hoá đơn lên máy chủ lưu trữ. Kiểm tra kết nối Wi-Fi của điện thoại rồi thử lại.",
+  "purchase.uploadUnreadable": "Không đọc được tệp ảnh đã chọn. Vui lòng chọn ảnh khác.",
+  "purchase.uploadNotAllowed": "Tệp không hợp lệ: chỉ nhận ảnh JPG/PNG/WEBP hoặc PDF không quá 15MB.",
 
   "status.DRAFT": "Nháp",
   "status.TODO": "Chưa bắt đầu",

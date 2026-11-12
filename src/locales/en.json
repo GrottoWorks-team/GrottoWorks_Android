@@ -357,6 +357,12 @@
   "purchase.noItems": "This purchase request has no material lines",
   "purchase.requestNotApproved": "The request is {{status}}, so it cannot be recorded yet — the leader must approve it first",
   "purchase.stockHint": "Quantities enter stock only after the material officer confirms delivery",
+  "purchase.invoice": "Receipt photo",
+  "purchase.invoiceHint": "Take or pick photos of the invoice/at the shop (max 5). The receipt is the cost evidence the material officer reconciles.",
+  "purchase.invoiceRequired": "Attach at least one receipt photo.",
+  "purchase.uploadFailed": "The receipt photo could not be uploaded to storage. Check the phone's Wi-Fi connection and try again.",
+  "purchase.uploadUnreadable": "The selected image could not be read. Please pick another one.",
+  "purchase.uploadNotAllowed": "Invalid file: only JPG/PNG/WEBP or PDF up to 15MB.",
 
   "status.DRAFT": "Draft",
   "status.TODO": "Not started",
