@@ -44,19 +44,27 @@ function NotificationWatcher() {
   const baselineAt = useRef(new Date().toISOString());
 
   // Khởi tạo 1 lần: handler + channel + quyền + danh sách id đã phát.
+  // Mọi bước đều nằm trong try/catch: trước 12/11/2026 `ensureNotificationChannel()`
+  // ném lỗi native (NPE trên Expo Go) làm cả khối dừng giữa chừng → `ready` không
+  // bao giờ bật và thông báo không ra khay. Nay lỗi chỉ được log, phần còn lại vẫn chạy.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      configureNotificationHandler();
-      await ensureNotificationChannel();
-      await ensureNotificationPermission();
       try {
-        const raw = await AsyncStorage.getItem(SEEN_KEY);
-        if (raw) seen.current = new Set(JSON.parse(raw) as string[]);
-      } catch {
-        // Dữ liệu hỏng → coi như chưa từng phát.
+        configureNotificationHandler();
+        await ensureNotificationChannel();
+        await ensureNotificationPermission();
+        try {
+          const raw = await AsyncStorage.getItem(SEEN_KEY);
+          if (raw) seen.current = new Set(JSON.parse(raw) as string[]);
+        } catch {
+          // Dữ liệu hỏng → coi như chưa từng phát.
+        }
+      } catch (error) {
+        console.warn('[notifications] khởi tạo thông báo lỗi:', error);
+      } finally {
+        if (!cancelled) ready.current = true;
       }
-      if (!cancelled) ready.current = true;
     })();
     return () => {
       cancelled = true;
