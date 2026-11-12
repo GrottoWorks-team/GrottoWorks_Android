@@ -73,6 +73,10 @@ export interface Task {
   pendingRegVolunteerIds?: string[];
   /** Assignment được chỉ định làm trưởng nhóm (BE `TaskDto.teamLeaderAssignmentId`). */
   teamLeaderAssignmentId?: string | null;
+  /** Loại việc ở BE (`TaskDto.taskType`): WORK | PURCHASE | CORRECTIVE. */
+  taskType?: 'WORK' | 'PURCHASE' | 'CORRECTIVE';
+  /** Việc đi mua: đơn mua mà task này thực hiện (`TaskDto.purchaseRequestId`). */
+  purchaseRequestId?: string | null;
 }
 
 export interface TaskAssignment {

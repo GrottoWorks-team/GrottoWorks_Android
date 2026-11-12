@@ -127,10 +127,10 @@ export const useMyPurchaseTasks = () =>
   useQuery({ queryKey: keys.purchaseTasks, queryFn: listMyPurchaseTasks, staleTime: 0 });
 
 /** Dòng vật tư của đơn mua cần ghi nhận số lượng thật. */
-export const usePurchaseRequest = (requestId: string) =>
+export const usePurchaseRequest = (requestId?: string) =>
   useQuery({
-    queryKey: keys.purchaseRequest(requestId),
-    queryFn: () => getPurchaseRequest(requestId),
+    queryKey: keys.purchaseRequest(requestId ?? ''),
+    queryFn: () => getPurchaseRequest(requestId ?? ''),
     enabled: Boolean(requestId),
     staleTime: 0,
   });

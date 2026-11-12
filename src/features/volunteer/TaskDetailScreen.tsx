@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Screen } from '../../components/Screen';
 import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
@@ -23,6 +24,7 @@ import {
   useMyAttendanceRequests,
   useMyTimesheets,
   useRespondAssignment,
+  usePurchaseRequest,
   useSubmitReview,
   useTask,
   useTaskMaterials,
@@ -30,7 +32,7 @@ import {
 } from '../../api/hooks';
 import { useRefreshControl } from '../../lib/useRefreshControl';
 import { colors, radius, spacing } from '../../theme/tokens';
-import type { TasksStackParamList } from '../../navigation/types';
+import type { MainTabParamList, TasksStackParamList } from '../../navigation/types';
 
 type DetailRoute = RouteProp<TasksStackParamList, 'TaskDetail'>;
 type DetailNav = NativeStackNavigationProp<TasksStackParamList, 'TaskDetail'>;
@@ -58,6 +60,10 @@ export function TaskDetailScreen() {
   const checkOut = useCheckOut(volunteerId);
   const cancelRequest = useCancelAttendanceRequest(volunteerId);
   const { data: progress = [] } = useTaskProgress(params.taskId);
+  // Việc đi mua: task mang `purchaseRequestId` → tải đơn mua để hiện "Vật tư cần mua"
+  // (trước 12/11/2026 TNV không thấy ở đây, chỉ thấy trong màn Ghi nhận mua).
+  const purchaseRequestId = task?.purchaseRequestId ?? undefined;
+  const { data: purchaseRequest } = usePurchaseRequest(purchaseRequestId);
   const refresh = useRefreshControl([
     taskQuery.refetch,
     areasQuery.refetch,
@@ -318,6 +324,49 @@ export function TaskDetailScreen() {
           </Card>
         )}
 
+        {/* Việc ĐI MUA: hiện đúng danh sách vật tư + số lượng của đơn mua để TNV
+            biết cần mua gì, kèm lối tắt sang màn "Ghi nhận lần mua". */}
+        {task.taskType === 'PURCHASE' && purchaseRequest ? (
+          <Card style={styles.card}>
+            <AppText variant="label">{t('tasks.purchaseTitle')}</AppText>
+            <AppText variant="sub">{t('tasks.purchaseHint')}</AppText>
+            {purchaseRequest.items.map((item) => (
+              <View key={item.id} style={styles.purchaseRow}>
+                <AppText variant="h2" style={styles.purchaseName}>
+                  {item.materialName}
+                </AppText>
+                <AppText variant="sub">
+                  {t('purchase.requested', { qty: item.requestedQuantity, unit: item.unit })}
+                </AppText>
+                {typeof item.estimatedCost === 'number' && item.estimatedCost > 0 ? (
+                  <AppText variant="sub">
+                    {t('tasks.purchaseEstimate', {
+                      amount: item.estimatedCost.toLocaleString('vi-VN'),
+                    })}
+                  </AppText>
+                ) : null}
+              </View>
+            ))}
+            {myStatus === 'ACCEPTED' ? (
+              <Button
+                label={t('purchase.record')}
+                onPress={() => {
+                  const tabs =
+                    navigation.getParent<BottomTabNavigationProp<MainTabParamList>>();
+                  tabs?.navigate('Profile', {
+                    screen: 'RecordPurchase',
+                    params: {
+                      requestId: purchaseRequest.id,
+                      taskName: task.title,
+                    },
+                  });
+                }}
+                style={styles.purchaseAction}
+              />
+            ) : null}
+          </Card>
+        ) : null}
+
         {/* Hành động theo trạng thái phân công của TNV */}
         {myStatus === 'PENDING' && (
           <Card style={[styles.card, styles.inviteCard]}>
@@ -573,6 +622,14 @@ const styles = StyleSheet.create({
   inviteCard: { borderColor: colors.pendingFg },
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   flex1: { flex: 1 },
+  purchaseRow: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.hairline,
+    paddingTop: spacing.sm,
+    gap: 2,
+  },
+  purchaseName: { flexShrink: 1 },
+  purchaseAction: { marginTop: spacing.sm },
   statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   progressRow: { gap: 2, paddingVertical: 2 },
   backdrop: {

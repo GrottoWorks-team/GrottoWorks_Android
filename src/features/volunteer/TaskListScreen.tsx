@@ -295,6 +295,7 @@ function TaskRow({
           </AppText>
           <StatusTag status={task.status} />
         </View>
+        <TaskTypeBadge task={task} />
         <AppText variant="sub" numberOfLines={1}>
           {area} · {t('tasks.dueDate')}: {task.dueDate}
         </AppText>
@@ -341,6 +342,7 @@ function OpenRow({
             </View>
           ) : null}
         </View>
+        <TaskTypeBadge task={task} />
         <AppText variant="sub" numberOfLines={1}>
           {area} · {t('tasks.dueDate')}: {task.dueDate}
         </AppText>
@@ -358,6 +360,21 @@ function OpenRow({
         </View>
       </Card>
     </Pressable>
+  );
+}
+
+/** Nhãn loại việc: chỉ hiện với việc đặc biệt (đi mua / khắc phục), việc thường để trống. */
+function TaskTypeBadge({ task }: { task: Task }) {
+  const { t } = useTranslation();
+  const type = task.taskType ?? 'WORK';
+  if (type === 'WORK') return null;
+  const label = type === 'PURCHASE' ? t('tasks.typePurchase') : t('tasks.typeCorrective');
+  return (
+    <View style={styles.typeBadge}>
+      <AppText variant="sub" color={colors.ink}>
+        {label}
+      </AppText>
+    </View>
   );
 }
 
@@ -432,6 +449,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
+  },
+  typeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.goldLight,
+    borderColor: colors.gold,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
   },
   slotTag: {
     backgroundColor: colors.pineLight,

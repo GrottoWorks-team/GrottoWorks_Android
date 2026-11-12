@@ -17,6 +17,7 @@ import {
   useAreas,
   useCancelRegistration,
   useMyReg,
+  usePurchaseRequest,
   useRegisterForTask,
   useTask,
   useTaskMaterials,
@@ -38,6 +39,9 @@ export function OpenTaskDetailScreen() {
   const { data: areas = [] } = useAreas();
   const { data: materials = [] } = useTaskMaterials();
   const { data: myReg } = useMyReg(params.taskId, volunteerId);
+  // Việc đi mua: hiện danh sách vật tư của đơn mua để TNV biết mình sẽ mua gì
+  // trước khi đăng ký.
+  const { data: purchaseRequest } = usePurchaseRequest(task?.purchaseRequestId ?? undefined);
   const register = useRegisterForTask(volunteerId);
   const cancel = useCancelRegistration(volunteerId);
   // BE chưa có endpoint huỷ đơn đăng ký của TNV.
@@ -181,6 +185,24 @@ export function OpenTaskDetailScreen() {
           </Card>
         )}
 
+        {/* Việc ĐI MUA: danh sách vật tư + số lượng của đơn mua (đọc trước khi đăng ký). */}
+        {task.taskType === 'PURCHASE' && purchaseRequest ? (
+          <Card style={styles.card}>
+            <AppText variant="label">{t('tasks.purchaseTitle')}</AppText>
+            <AppText variant="sub">{t('tasks.purchaseHintApply')}</AppText>
+            {purchaseRequest.items.map((item) => (
+              <View key={item.id} style={styles.purchaseRow}>
+                <AppText variant="h2" style={styles.purchaseName}>
+                  {item.materialName}
+                </AppText>
+                <AppText variant="sub">
+                  {t('purchase.requested', { qty: item.requestedQuantity, unit: item.unit })}
+                </AppText>
+              </View>
+            ))}
+          </Card>
+        ) : null}
+
         {/* Trạng thái đăng ký / hành động */}
         {joined ? (
           <Card style={[styles.card, styles.okCard]}>
@@ -286,6 +308,13 @@ const styles = StyleSheet.create({
   card: { gap: spacing.sm },
   body: { marginTop: spacing.xs },
   field: { gap: 2 },
+  purchaseRow: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.hairline,
+    paddingTop: spacing.sm,
+    gap: 2,
+  },
+  purchaseName: { flexShrink: 1 },
   labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
   tag: {

@@ -435,6 +435,8 @@ export function toTask(dto: TaskDto): Task {
     dueDate: (dto.deadline ?? '').slice(0, 10),
     submittedPhotos: 0,
     teamLeaderAssignmentId: dto.teamLeaderAssignmentId ?? null,
+    taskType: ((dto.taskType ?? 'WORK').toUpperCase() as Task['taskType']) ?? 'WORK',
+    purchaseRequestId: dto.purchaseRequestId ?? null,
     ...(dto.completionCriteria ? { completionCriteria: dto.completionCriteria } : {}),
   };
 }
