@@ -2,7 +2,6 @@
   "app.name": "GrottoWorks",
   "app.parish": "Giáo xứ Tân Định",
   "app.role.volunteer": "Tình nguyện viên",
-
   "common.save": "Lưu",
   "common.cancel": "Huỷ",
   "common.delete": "Xoá",
@@ -20,7 +19,6 @@
   "common.error": "Có lỗi xảy ra — vui lòng thử lại",
   "common.required": "Vui lòng nhập thông tin",
   "common.retry": "Thử lại",
-
   "login.title": "Đăng nhập",
   "login.subtitle": "Điều hành hang đá & cảnh tuyển Giáng sinh",
   "login.email": "Email",
@@ -33,14 +31,12 @@
   "login.notVolunteer": "Ứng dụng này chỉ dành cho tài khoản tình nguyện viên. Vui lòng dùng bản web cho vai trò khác.",
   "login.demoAccounts": "Tài khoản demo — mật khẩu: {{password}}",
   "login.hint": "Đăng nhập bằng tài khoản tình nguyện viên của bạn",
-
   "tab.home": "Trang chủ",
   "tab.tasks": "Nhiệm vụ",
   "tab.open": "Đang tuyển",
   "tab.timesheets": "Giờ đóng góp",
   "tab.notifications": "Thông báo",
   "tab.profile": "Hồ sơ",
-
   "home.greeting": "Xin chào, {{name}}",
   "home.myTasks": "Nhiệm vụ của tôi",
   "home.pendingInvites": "Lời mời đang chờ",
@@ -51,7 +47,6 @@
   "home.openForYou": "Nhiệm vụ đang tuyển cho bạn",
   "home.myRegs": "Đơn đăng ký của tôi",
   "home.totalHoursLabel": "Tổng giờ đóng góp",
-
   "tasks.title": "Nhiệm vụ",
   "tasks.sub": "Nhiệm vụ bạn được phân công",
   "tasks.inviteTitle": "Lời mời tham gia",
@@ -141,7 +136,6 @@
   "tasks.subtab.open": "Đang tuyển",
   "tasks.todoOnDay": "Việc cần làm",
   "tasks.dueToday": "Đến hạn hôm nay",
-
   "calendar.title": "Lịch giờ đóng góp",
   "calendar.today": "Hôm nay",
   "calendar.todayShort": "Nay",
@@ -170,9 +164,7 @@
   "calendar.weekday.T6": "T6",
   "calendar.weekday.T7": "T7",
   "calendar.weekday.CN": "CN",
-
   "open.detail": "Chi tiết nhiệm vụ đang tuyển",
-
   "open.title": "Đang tuyển",
   "open.sub": "Nhiệm vụ đang mở đăng ký — gửi đơn để trưởng khu duyệt",
   "open.empty": "Hiện chưa có nhiệm vụ nào đang tuyển.",
@@ -200,14 +192,12 @@
   "open.regRejectReason": "Lý do: {{reason}}",
   "open.alreadyAssigned": "Bạn đã tham gia nhiệm vụ này",
   "open.full": "Nhiệm vụ đã đủ người",
-
   "regs.title": "Đơn đăng ký của tôi",
   "regs.task": "Nhiệm vụ",
   "regs.sentAt": "Gửi lúc",
   "regs.note": "Lời nhắn",
   "regs.empty": "Bạn chưa gửi đơn đăng ký nào.",
   "regs.pendingNote": "Bạn có {{n}} đơn đang chờ duyệt.",
-
   "timesheets.title": "Giờ đóng góp",
   "timesheets.sub": "Giờ đóng góp của bạn",
   "timesheets.date": "Ngày",
@@ -229,7 +219,6 @@
   "timesheets.correctionSent": "Đã gửi yêu cầu chỉnh giờ",
   "timesheets.correctionPlaceholder": "Ví dụ: Quên check-out lúc 17:00…",
   "timesheets.hoursByDay": "Giờ đóng góp theo ngày (7 ngày gần nhất)",
-
   "notifications.title": "Thông báo",
   "notifications.sub": "Phân công, đăng ký và việc cần bạn xử lý",
   "notifications.empty": "Chưa có thông báo nào",
@@ -248,7 +237,6 @@
   "notifications.prefEmailHint": "Gửi bản sao thông báo tới email đăng ký.",
   "notifications.prefsSaved": "Đã lưu tuỳ chọn thông báo",
   "notifications.prefsHint": "Thay đổi áp dụng cho tài khoản của bạn trên mọi thiết bị.",
-
   "profile.title": "Hồ sơ cá nhân",
   "profile.name": "Họ tên",
   "profile.email": "Email",
@@ -288,7 +276,6 @@
   "profile.communityRequired": "Cần chọn giáo khu trước khi lưu giới thiệu",
   "profile.noCommunities": "Chưa có giáo khu nào trong giáo xứ",
   "profile.settings": "Cài đặt",
-
   "pledge.title": "Quyên góp",
   "pledge.sub": "Cam kết vật tư hoặc tiền cho nhu cầu đang thiếu",
   "pledge.materialTab": "Vật tư",
@@ -308,7 +295,6 @@
   "pledge.submit": "Gửi cam kết",
   "pledge.success": "Đã gửi cam kết quyên góp",
   "pledge.endpointUnavailable": "BE chưa mở endpoint quyên góp (gateway thiếu route) — vui lòng báo bộ phận kỹ thuật",
-
   "contrib.title": "Quyên góp của tôi",
   "contrib.sub": "Các cam kết vật tư và tiền đã gửi",
   "contrib.empty": "Bạn chưa có quyên góp nào",
@@ -318,7 +304,6 @@
   "contrib.received": "Đã nhận: {{value}}",
   "contrib.qtyPledged": "cam kết {{qty}} {{unit}}",
   "contrib.qtyReceived": "· đã nhận {{qty}} {{unit}}",
-
   "loan.title": "Chào cho mượn",
   "loan.sub": "Đăng ký đồ đạc cho mượn ngoài (kể cả hộ chủ đồ)",
   "loan.itemName": "Tên đồ",
@@ -338,7 +323,6 @@
   "loan.areaHint": "Không bắt buộc",
   "loan.submit": "Gửi chào cho mượn",
   "loan.success": "Đã gửi chào cho mượn",
-
   "purchase.title": "Việc đi mua",
   "purchase.sub": "Các việc mua trưởng khu đã giao cho bạn — ghi lại số lượng và giá thực tế",
   "purchase.empty": "Bạn chưa có việc đi mua nào cần ghi nhận",
@@ -365,7 +349,6 @@
   "purchase.uploadFailed": "Không tải được ảnh hoá đơn lên máy chủ lưu trữ. Kiểm tra kết nối Wi-Fi của điện thoại rồi thử lại.",
   "purchase.uploadUnreadable": "Không đọc được tệp ảnh đã chọn. Vui lòng chọn ảnh khác.",
   "purchase.uploadNotAllowed": "Tệp không hợp lệ: chỉ nhận ảnh JPG/PNG/WEBP hoặc PDF không quá 15MB.",
-
   "status.DRAFT": "Nháp",
   "status.TODO": "Chưa bắt đầu",
   "status.DOING": "Đang làm",
@@ -389,11 +372,11 @@
   "status.CANCELED": "Đã huỷ",
   "status.CANCELLED": "Đã huỷ",
   "status.CORRECTED": "Đã hiệu chỉnh",
-"status.ON_TRACK": "Đúng tiến độ",
-"status.AT_RISK": "Có rủi ro",
-"status.LATE": "Trễ hạn",
-"status.PLANNED": "Đang lên kế hoạch",
-"status.COMPLETED": "Hoàn thành",
+  "status.ON_TRACK": "Đúng tiến độ",
+  "status.AT_RISK": "Có rủi ro",
+  "status.LATE": "Trễ hạn",
+  "status.PLANNED": "Đang lên kế hoạch",
+  "status.COMPLETED": "Hoàn thành",
   "tasks.progressTitle": "Tiến độ & minh chứng",
   "tasks.progressItem": "Hoàn thành {{percent}}% · {{photos}} ảnh minh chứng",
   "tasks.progressApproved": "Trưởng khu đã duyệt",
@@ -564,5 +547,18 @@
   "errorsByKind.unavailable": "Dịch vụ tạm thời không phản hồi — vui lòng thử lại sau.",
   "errorsByKind.tooMany": "Vượt quá số lượng hoặc giới hạn cho phép.",
   "errorsByKind.pending": "Thao tác trước đang chờ xử lý — vui lòng đợi.",
-  "errorsByKind.invalid": "Dữ liệu không hợp lệ — vui lòng kiểm tra lại."
+  "errorsByKind.invalid": "Dữ liệu không hợp lệ — vui lòng kiểm tra lại.",
+  "tasks.startEligibilityUnknown": "Chưa kiểm tra được điều kiện bắt đầu. Vì an toàn, tạm khoá vào ca — bấm Thử lại.",
+  "tasks.submitUnsynced": "Chưa đồng bộ — nội dung vẫn giữ nguyên. Bấm Gửi để thử lại.",
+  "tasks.photoPickerFailed": "Không mở được máy ảnh/thư viện ảnh. Vui lòng chọn lại.",
+  "tasks.photoBroken": "Ảnh này không đọc được nên đã bỏ khỏi danh sách. Vui lòng chọn ảnh khác.",
+  "tasks.materialsCount": "{{count}} vật tư",
+  "timesheets.requestsTitle": "Đơn vào ca gần đây",
+  "timesheets.requestsEmpty": "Chưa có đơn vào ca nào.",
+  "timesheets.requestApprovedHint": "Đã duyệt — số giờ nằm ở lịch bên dưới.",
+  "timesheets.requestRejectedReason": "Bị từ chối: {{reason}}",
+  "timesheets.noReason": "không có lý do",
+  "notifications.loadError": "Không tải được thông báo",
+  "notifications.emptyHint": "Phân công, đăng ký và việc cần bạn xử lý sẽ hiện ở đây.",
+  "tasks.startEligibilityChecking": "Đang kiểm tra điều kiện bắt đầu. Vui lòng chờ trong giây lát."
 }

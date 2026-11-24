@@ -2,7 +2,6 @@
   "app.name": "GrottoWorks",
   "app.parish": "Tan Dinh Parish",
   "app.role.volunteer": "Volunteer",
-
   "common.save": "Save",
   "common.cancel": "Cancel",
   "common.delete": "Delete",
@@ -20,7 +19,6 @@
   "common.error": "Something went wrong — please try again",
   "common.required": "This field is required",
   "common.retry": "Retry",
-
   "login.title": "Log in",
   "login.subtitle": "Running the nativity grotto & Christmas scenery",
   "login.email": "Email",
@@ -33,14 +31,12 @@
   "login.notVolunteer": "This app is for volunteer accounts only. Please use the web app for other roles.",
   "login.demoAccounts": "Demo accounts — password: {{password}}",
   "login.hint": "Sign in with your volunteer account",
-
   "tab.home": "Home",
   "tab.tasks": "Tasks",
   "tab.open": "Open",
   "tab.timesheets": "Contribution hours",
   "tab.notifications": "Notifications",
   "tab.profile": "Profile",
-
   "home.greeting": "Hello, {{name}}",
   "home.myTasks": "My tasks",
   "home.pendingInvites": "Pending invites",
@@ -51,7 +47,6 @@
   "home.openForYou": "Open for you",
   "home.myRegs": "My registrations",
   "home.totalHoursLabel": "Total contributed hours",
-
   "tasks.title": "Tasks",
   "tasks.sub": "Tasks assigned to you",
   "tasks.inviteTitle": "Invitation to join",
@@ -141,7 +136,6 @@
   "tasks.subtab.open": "Open",
   "tasks.todoOnDay": "To-do",
   "tasks.dueToday": "Due today",
-
   "calendar.title": "Contribution calendar",
   "calendar.today": "Today",
   "calendar.todayShort": "Today",
@@ -170,9 +164,7 @@
   "calendar.weekday.T6": "Fri",
   "calendar.weekday.T7": "Sat",
   "calendar.weekday.CN": "Sun",
-
   "open.detail": "Open task detail",
-
   "open.title": "Open",
   "open.sub": "Tasks open for registration — submit a request for the area leader to approve",
   "open.empty": "No open tasks right now.",
@@ -200,14 +192,12 @@
   "open.regRejectReason": "Reason: {{reason}}",
   "open.alreadyAssigned": "You have already joined this task",
   "open.full": "This task is full",
-
   "regs.title": "My registrations",
   "regs.task": "Task",
   "regs.sentAt": "Sent at",
   "regs.note": "Message",
   "regs.empty": "You have not submitted any registration yet.",
   "regs.pendingNote": "You have {{n}} registration(s) awaiting approval.",
-
   "timesheets.title": "Contribution hours",
   "timesheets.sub": "Your contributed hours",
   "timesheets.date": "Date",
@@ -229,7 +219,6 @@
   "timesheets.correctionSent": "Correction request sent",
   "timesheets.correctionPlaceholder": "E.g. Forgot to check out at 17:00…",
   "timesheets.hoursByDay": "Contributed hours by day (last 7 days)",
-
   "notifications.title": "Notifications",
   "notifications.sub": "Assignments, registrations and things to handle",
   "notifications.empty": "No notifications yet",
@@ -248,7 +237,6 @@
   "notifications.prefEmailHint": "Send a copy of notifications to your registered email.",
   "notifications.prefsSaved": "Notification preferences saved",
   "notifications.prefsHint": "Changes apply to your account on every device.",
-
   "profile.title": "Your profile",
   "profile.name": "Full name",
   "profile.email": "Email",
@@ -286,7 +274,8 @@
   "profile.community": "Community",
   "profile.communityHint": "Pick the community you belong to",
   "profile.communityRequired": "Please choose a community before saving your introduction",
-  "profile.noCommunities": "No communities in this parish yet",  "profile.settings": "Settings",
+  "profile.noCommunities": "No communities in this parish yet",
+  "profile.settings": "Settings",
   "pledge.title": "Donate",
   "pledge.sub": "Pledge materials or money for current needs",
   "pledge.materialTab": "Materials",
@@ -306,7 +295,6 @@
   "pledge.submit": "Send pledge",
   "pledge.success": "Pledge sent",
   "pledge.endpointUnavailable": "The pledge endpoint is not exposed by the gateway yet — please report to the team",
-
   "contrib.title": "My donations",
   "contrib.sub": "Material and money pledges you sent",
   "contrib.empty": "You have no donations yet",
@@ -316,7 +304,6 @@
   "contrib.received": "Received: {{value}}",
   "contrib.qtyPledged": "pledged {{qty}} {{unit}}",
   "contrib.qtyReceived": "· received {{qty}} {{unit}}",
-
   "loan.title": "Lend items",
   "loan.sub": "Offer items for loan (also on behalf of the lender)",
   "loan.itemName": "Item",
@@ -336,7 +323,6 @@
   "loan.areaHint": "Optional",
   "loan.submit": "Send loan offer",
   "loan.success": "Loan offer sent",
-
   "purchase.title": "Purchase tasks",
   "purchase.sub": "Purchase tasks your area leader assigned — record the real quantity and price",
   "purchase.empty": "You have no purchase task to record",
@@ -363,7 +349,6 @@
   "purchase.uploadFailed": "The receipt photo could not be uploaded to storage. Check the phone's Wi-Fi connection and try again.",
   "purchase.uploadUnreadable": "The selected image could not be read. Please pick another one.",
   "purchase.uploadNotAllowed": "Invalid file: only JPG/PNG/WEBP or PDF up to 15MB.",
-
   "status.DRAFT": "Draft",
   "status.TODO": "Not started",
   "status.DOING": "In progress",
@@ -387,11 +372,11 @@
   "status.CANCELED": "Canceled",
   "status.CANCELLED": "Cancelled",
   "status.CORRECTED": "Corrected",
-"status.ON_TRACK": "On track",
-"status.AT_RISK": "At risk",
-"status.LATE": "Late",
-"status.PLANNED": "Planned",
-"status.COMPLETED": "Completed",
+  "status.ON_TRACK": "On track",
+  "status.AT_RISK": "At risk",
+  "status.LATE": "Late",
+  "status.PLANNED": "Planned",
+  "status.COMPLETED": "Completed",
   "tasks.progressTitle": "Progress & evidence",
   "tasks.progressItem": "{{percent}}% complete · {{photos}} evidence photos",
   "tasks.progressApproved": "Approved by the area leader",
@@ -562,5 +547,18 @@
   "errorsByKind.unavailable": "The service is temporarily unavailable — please try again later.",
   "errorsByKind.tooMany": "Exceeds the allowed amount or limit.",
   "errorsByKind.pending": "The previous operation is still pending — please wait.",
-  "errorsByKind.invalid": "Invalid data — please check the values."
+  "errorsByKind.invalid": "Invalid data — please check the values.",
+  "tasks.startEligibilityUnknown": "Start conditions could not be checked. Check-in stays locked for safety — tap Retry.",
+  "tasks.submitUnsynced": "Not synced — your content is kept. Tap Send to retry.",
+  "tasks.photoPickerFailed": "Could not open the camera/photo library. Please pick again.",
+  "tasks.photoBroken": "This image could not be read and was removed. Please pick another one.",
+  "tasks.materialsCount": "{{count}} materials",
+  "timesheets.requestsTitle": "Recent check-in requests",
+  "timesheets.requestsEmpty": "No check-in requests yet.",
+  "timesheets.requestApprovedHint": "Approved — see hours in the calendar below.",
+  "timesheets.requestRejectedReason": "Rejected: {{reason}}",
+  "timesheets.noReason": "no reason given",
+  "notifications.loadError": "Could not load notifications",
+  "notifications.emptyHint": "Assignments, registrations and tasks needing you will appear here.",
+  "tasks.startEligibilityChecking": "Checking start conditions. Please wait a moment."
 }

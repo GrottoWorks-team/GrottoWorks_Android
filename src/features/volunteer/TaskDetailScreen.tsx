@@ -32,6 +32,7 @@ import {
   useTaskStartEligibility,
 } from '../../api/hooks';
 import { useRefreshControl } from '../../lib/useRefreshControl';
+import { formatVnd } from '../../lib/format';
 import { colors, radius, spacing } from '../../theme/tokens';
 import type { MainTabParamList, TasksStackParamList } from '../../navigation/types';
 
@@ -66,7 +67,12 @@ export function TaskDetailScreen() {
   const purchaseRequestId = task?.purchaseRequestId ?? undefined;
   const { data: purchaseRequest } = usePurchaseRequest(purchaseRequestId);
   // Điều kiện bắt đầu việc: tới giờ bắt đầu / đủ thành viên / đã cấp đủ vật tư (12/11/2026).
-  const { data: startEligibility } = useTaskStartEligibility(params.taskId);
+  const {
+    data: startEligibility,
+    isPending: eligibilityPending,
+    isError: eligibilityError,
+    refetch: refetchEligibility,
+  } = useTaskStartEligibility(params.taskId);
   const refresh = useRefreshControl([
     taskQuery.refetch,
     areasQuery.refetch,
@@ -160,9 +166,10 @@ export function TaskDetailScreen() {
     } catch (error) {
       // Không im lặng: hiện lỗi ngay trong modal (toast có thể bị modal che).
       const raw = error instanceof ApiError ? error.message : '';
-      const friendly =
-        (error instanceof ApiError && error.status === 0) ||
-        /EVIDENCE_UPLOAD|UPLOAD_SIZE/i.test(raw)
+      const offline = error instanceof ApiError && error.status === 0;
+      const friendly = offline
+        ? t('tasks.submitUnsynced')
+        : /EVIDENCE_UPLOAD|UPLOAD_SIZE/i.test(raw)
           ? t('tasks.evidenceUploadFailed')
           : raw || t('common.error');
       setSubmitError(friendly);
@@ -189,7 +196,11 @@ export function TaskDetailScreen() {
     (task.backendStatus === 'NOT_STARTED' || task.backendStatus === 'IN_PROGRESS');
   // Chưa đủ điều kiện (giờ bắt đầu / thành viên / vật tư) → không cho bấm vào ca.
   const startBlockers = startEligibility?.blockers ?? [];
-  const startBlocked = startBlockers.length > 0;
+  // M-01: không tải được điều kiện → KHÔNG tự mở khoá check-in (an toàn hơn là cho vào ca sai).
+  const eligibilityUnknown = Boolean(eligibilityError) && !startEligibility;
+  // Ch?a c? k?t qu? (?ang t?i) c?ng ch?a cho v?o ca ? tr?nh check-in khi ch?a x?c minh.
+  const eligibilityUnverified = (eligibilityError || eligibilityPending) && !startEligibility;
+  const startBlocked = startBlockers.length > 0 || eligibilityUnverified;
 
   const onCancelRequest = async () => {
     if (!pendingRequest) return;
@@ -352,7 +363,7 @@ export function TaskDetailScreen() {
                 {typeof item.estimatedCost === 'number' && item.estimatedCost > 0 ? (
                   <AppText variant="sub">
                     {t('tasks.purchaseEstimate', {
-                      amount: item.estimatedCost.toLocaleString('vi-VN'),
+                      amount: formatVnd(item.estimatedCost),
                     })}
                   </AppText>
                 ) : null}
@@ -416,6 +427,20 @@ export function TaskDetailScreen() {
                 <AppText variant="label" color={colors.dangerFg}>
                   {t('tasks.startBlockedTitle')}
                 </AppText>
+                {eligibilityUnverified ? (
+                  <>
+                    <AppText variant="sub" style={styles.blockerItem}>
+                      • {eligibilityUnknown ? t('tasks.startEligibilityUnknown') : t('tasks.startEligibilityChecking')}
+                    </AppText>
+                    <Button
+                      label={t('common.retry')}
+                      variant="outline"
+                      size="sm"
+                      onPress={() => void refetchEligibility()}
+                      loading={eligibilityPending}
+                    />
+                  </>
+                ) : null}
                 {startBlockers.map((blocker) => (
                   <AppText key={blocker.code} variant="sub" style={styles.blockerItem}>
                     • {t(`errors.${blocker.code}`, { defaultValue: blocker.detail })}

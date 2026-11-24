@@ -713,11 +713,10 @@ export async function cancelAttendanceRequestReal(
  * để nhiệm vụ ở trạng thái "Chưa bắt đầu" mà không giải thích.
  */
 export async function myAttendanceRequestsReal(
-  status = 'PENDING',
+  status?: string,
 ): Promise<AttendanceRequestDto[]> {
-  return await http<AttendanceRequestDto[]>(
-    `/users/me/attendance-requests?status=${status}&size=50`,
-  );
+  const query = status ? `?status=${status}&size=50` : '?size=50';
+  return await http<AttendanceRequestDto[]>(`/users/me/attendance-requests${query}`);
 }
 
 // ── Mua hàng (Resource F-RES-09 — BR-30) ───────────────────────────────────

@@ -17,6 +17,7 @@ import { PhotoPicker } from '../../../components/PhotoPicker';
 import { useToast } from '../../../components/Toast';
 import { ApiError, uploadPurchaseReceipt } from '../../../api';
 import { usePurchaseRequest, useRecordPurchase } from '../../../api/hooks';
+import { formatVnd } from '../../../lib/format';
 import { colors, radius, spacing } from '../../../theme/tokens';
 import type { ProfileStackParamList } from '../../../navigation/types';
 
@@ -34,7 +35,7 @@ interface LineState {
 const today = () => new Date().toISOString().slice(0, 10);
 
 const fmtMoney = (value: number) =>
-  value.toLocaleString('vi-VN', { maximumFractionDigits: 0 });
+  formatVnd(value);
 
 export function RecordPurchaseScreen() {
   const { t } = useTranslation();

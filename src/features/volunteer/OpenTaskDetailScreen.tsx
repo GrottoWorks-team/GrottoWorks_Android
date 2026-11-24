@@ -10,6 +10,7 @@ import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/StatusTag';
+import { viDate } from '../../lib/format';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../auth/AuthContext';
 import { isRealApiActive } from '../../api';
@@ -140,7 +141,7 @@ export function OpenTaskDetailScreen() {
           <Field label={t('tasks.volunteersNeeded')} value={String(task.volunteersNeeded)} />
           <Field label={t('tasks.taken')} value={String(task.assignees.length)} />
           <Field label={t('tasks.slotsLeft', { n: slotsLeft })} value={String(slotsLeft)} />
-          <Field label={t('tasks.dueDate')} value={task.dueDate} />
+          <Field label={t('tasks.dueDate')} value={viDate(task.dueDate)} />
         </Card>
 
         {task.skills.length > 0 && (

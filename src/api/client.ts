@@ -82,6 +82,16 @@ export async function clearTokens(): Promise<void> {
   await saveTokens(null);
 }
 
+/**
+ * M-04: 401 mà refresh cũng hỏng → phiên hết hạn. Client báo cho AuthContext để
+ * đưa người dùng về màn đăng nhập thay vì đứng ở màn trống.
+ */
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
+
 /** Lỗi HTTP. `status === 0` = không kết nối được BE (gateway chưa chạy/offline). */
 export class ApiError extends Error {
   readonly status: number;
@@ -137,12 +147,17 @@ export async function http<T>(path: string, options: HttpOptions = {}): Promise<
 
   const res = await request(`${API_BASE}${path}`, { method, headers, body, timeoutMs });
 
-  // Token hết hạn → refresh một lần rồi gọi lại.
-  if (res.status === 401 && !anonymous && !noRetry && !path.startsWith('/auth/')) {
-    refreshing = refreshing ?? refreshTokens();
-    const fresh = await refreshing.catch(() => null);
-    refreshing = null;
-    if (fresh) return http<T>(path, { ...options, noRetry: true });
+  // Token hết hạn → refresh một lần rồi gọi lại. Refresh hỏng (hoặc 401 lần hai)
+  // → xoá phiên + báo AuthContext để về màn đăng nhập.
+  if (res.status === 401 && !anonymous) {
+    if (!noRetry && !path.startsWith('/auth/')) {
+      refreshing = refreshing ?? refreshTokens();
+      const fresh = await refreshing.catch(() => null);
+      refreshing = null;
+      if (fresh) return http<T>(path, { ...options, noRetry: true });
+    }
+    await clearTokens();
+    unauthorizedHandler?.();
   }
 
   const text = await res.text();

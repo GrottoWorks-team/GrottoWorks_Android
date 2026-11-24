@@ -11,6 +11,7 @@ import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/StatusTag';
 import { Calendar } from '../../components/Calendar';
 import { ScreenHeader } from '../../components/ScreenHeader';
+import { EmptyState } from '../../components/EmptyState';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../auth/AuthContext';
 import { myAssignmentStatus, ApiError } from '../../api';
@@ -18,12 +19,14 @@ import {
   useCancelAttendanceRequest,
   useCheckIn,
   useCheckOut,
+  useMyAttendanceHistory,
   useMyAttendanceRequests,
   useMyTasks,
   useMyTimesheets,
   useRequestCorrection,
 } from '../../api/hooks';
 import { useRefreshControl } from '../../lib/useRefreshControl';
+import { formatDuration, viDate } from '../../lib/format';
 import type { Timesheet } from '../../types';
 import { colors, radius, spacing } from '../../theme/tokens';
 
@@ -47,12 +50,15 @@ export function TimesheetScreen() {
   const checkOut = useCheckOut(volunteerId);
   const requestsQuery = useMyAttendanceRequests(volunteerId);
   const { data: attendanceRequests = [] } = requestsQuery;
+  const historyQuery = useMyAttendanceHistory(volunteerId);
+  const { data: requestHistory = [] } = historyQuery;
   const cancelRequest = useCancelAttendanceRequest(volunteerId);
   const correction = useRequestCorrection(volunteerId);
   const refresh = useRefreshControl([
     timesheetsQuery.refetch,
     tasksQuery.refetch,
     requestsQuery.refetch,
+    historyQuery.refetch,
   ]);
 
   const now = new Date();
@@ -213,6 +219,38 @@ export function TimesheetScreen() {
         </Card>
 
         {/* Lịch tháng */}
+        {/* F-21: tr?ng th?i ??n v?o ca ? ch? duy?t / ?? duy?t (s? ph?t) / b? t? ch?i (l? do). */}
+        <Card style={styles.card}>
+          <AppText variant="label">{t('timesheets.requestsTitle')}</AppText>
+          {historyQuery.isError ? (
+            <EmptyState
+              text={t('common.error')}
+              actionLabel={t('common.retry')}
+              onAction={() => void historyQuery.refetch()}
+            />
+          ) : requestHistory.length === 0 ? (
+            <AppText variant="sub">{t('timesheets.requestsEmpty')}</AppText>
+          ) : (
+            requestHistory.slice(0, 5).map((row) => (
+              <View key={row.id} style={styles.requestRow}>
+                <View style={styles.flex1}>
+                  <AppText variant="sub">{viDate(row.requestedAt)}</AppText>
+                  {row.status === 'APPROVED' ? (
+                    <AppText variant="sub" color={colors.passedFg}>
+                      {t('timesheets.requestApprovedHint')}
+                    </AppText>
+                  ) : null}
+                  {row.status === 'REJECTED' ? (
+                    <AppText variant="sub" color={colors.dangerFg}>
+                      {t('timesheets.requestRejectedReason', { reason: row.note ?? t('timesheets.noReason') })}
+                    </AppText>
+                  ) : null}
+                </View>
+                <StatusTag status={row.status} />
+              </View>
+            ))
+          )}
+        </Card>
         <Card style={styles.card}>
           <Calendar
             year={view.year}
@@ -240,7 +278,7 @@ export function TimesheetScreen() {
                 {dayTimesheets.map((ts) => (
                   <View key={ts.id} style={styles.tsRow}>
                     <AppText variant="sub">
-                      {t('timesheets.checkIn')}: {ts.checkIn}
+                      {t('timesheets.checkIn')}: {ts.checkIn} ({formatDuration(ts.hours * 60)})
                       {ts.checkOut ? ` · ${t('timesheets.checkOut')}: ${ts.checkOut}` : ''}
                     </AppText>
                     <StatusTag status={ts.status} />
@@ -319,6 +357,7 @@ export function TimesheetScreen() {
 }
 
 const styles = StyleSheet.create({
+  requestRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
   scroll: { padding: spacing.lg, gap: spacing.md },
   summary: { gap: spacing.lg },
   summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

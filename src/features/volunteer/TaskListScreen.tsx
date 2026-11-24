@@ -15,6 +15,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { isRealApiActive, myAssignmentStatus } from '../../api';
 import { useAreas, useMyAttendanceRequests, useMyTasks, useMyTimesheets, useOpenTasks } from '../../api/hooks';
 import { useRefreshControl } from '../../lib/useRefreshControl';
+import { viDate } from '../../lib/format';
 import { skillMatchScore } from '../../types';
 import type { Task } from '../../types';
 import { colors, radius, spacing } from '../../theme/tokens';
@@ -176,7 +177,15 @@ export function TaskListScreen() {
             contentContainerStyle={styles.list}
             refreshControl={<RefreshControl {...refresh} />}
             ListEmptyComponent={
-              <EmptyState text={isPending ? t('common.loading') : t('home.noTasks')} />
+              tasksQuery.isError ? (
+                <EmptyState
+                  text={t('common.error')}
+                  actionLabel={t('common.retry')}
+                  onAction={() => void tasksQuery.refetch()}
+                />
+              ) : (
+                <EmptyState text={isPending ? t('common.loading') : t('home.noTasks')} />
+              )
             }
             renderItem={({ item }) => (
               <TaskRow
@@ -297,7 +306,7 @@ function TaskRow({
         </View>
         <TaskTypeBadge task={task} />
         <AppText variant="sub" numberOfLines={1}>
-          {area} · {t('tasks.dueDate')}: {task.dueDate}
+          {area} · {t('tasks.dueDate')}: {viDate(task.dueDate)} | {t('tasks.materialsCount', { count: task.materialIds.length })}
         </AppText>
         {/* Trạng thái thực tế của TNV: đang trong ca / đơn vào ca chờ duyệt. */}
         {session ? (
@@ -344,7 +353,7 @@ function OpenRow({
         </View>
         <TaskTypeBadge task={task} />
         <AppText variant="sub" numberOfLines={1}>
-          {area} · {t('tasks.dueDate')}: {task.dueDate}
+          {area} · {t('tasks.dueDate')}: {viDate(task.dueDate)} | {t('tasks.materialsCount', { count: task.materialIds.length })}
         </AppText>
         <View style={styles.metaRow}>
           <View style={styles.slotTag}>

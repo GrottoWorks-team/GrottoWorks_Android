@@ -325,7 +325,7 @@ export async function listMyTimesheets(_volunteerId: string): Promise<Timesheet[
  * (mặc định PENDING).
  */
 export async function listMyAttendanceRequests(
-  status: AttendanceRequestItem['status'] = 'PENDING',
+  status?: AttendanceRequestItem['status'],
 ): Promise<AttendanceRequestItem[]> {
   const rows = await myAttendanceRequestsReal(status);
   return rows.map((row) => ({

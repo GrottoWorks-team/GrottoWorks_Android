@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { User } from '../types';
 import { login as apiLogin } from '../api';
-import { clearTokens } from '../api/client';
+import { clearTokens, setUnauthorizedHandler } from '../api/client';
 
 const SESSION_KEY = 'grotto-mobile-session-v1';
 
@@ -71,6 +71,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserState(u);
     void AsyncStorage.setItem(SESSION_KEY, JSON.stringify(u));
   }, []);
+
+  // M-04: client.ts gọi handler này khi 401 và refresh cũng hỏng → xoá phiên,
+  // RootNavigator tự chuyển về màn đăng nhập (không đứng ở màn trống).
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      void signOut();
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [signOut]);
 
   const value = useMemo(
     () => ({ user, restoring, signingIn, signIn, signOut, setUser }),

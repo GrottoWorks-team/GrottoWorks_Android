@@ -227,6 +227,18 @@ export const useMyAttendanceRequests = (volunteerId: string) =>
     staleTime: 0,
   });
 
+/**
+ * F-21: lịch sử đơn vào ca của chính TNV (mọi trạng thái) — để hiện rõ
+ * "chờ duyệt / đã duyệt (số phút) / bị từ chối (lý do)".
+ */
+export const useMyAttendanceHistory = (volunteerId: string) =>
+  useQuery({
+    queryKey: [...keys.attendanceRequests(volunteerId), 'history'] as const,
+    queryFn: () => listMyAttendanceRequests(),
+    enabled: Boolean(volunteerId),
+    staleTime: 0,
+  });
+
 // Sau mọi mutation phân công/nộp duyệt: làm mới nhiệm vụ + thông báo.
 function invalidateTaskData(qc: ReturnType<typeof useQueryClient>, volunteerId: string) {
   void qc.invalidateQueries({ queryKey: keys.tasks(volunteerId) });
