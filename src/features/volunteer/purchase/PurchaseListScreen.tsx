@@ -1,26 +1,19 @@
-// Việc đi mua của tôi (F-RES-09, BR-30) — TNV được trưởng khu giao việc
-// `taskType = PURCHASE` ghi lại lần mua thật. Kho KHÔNG tăng ở bước này (BR-26):
-// trưởng ban vật tư xác nhận giao hàng thì kho khu mới tăng.
+// Việc đi mua của tôi (F-RES-09, BR-30) — TNV được trưởng khu giao việc `taskType = PURCHASE`
+// theo dõi tiến độ; trưởng ban vật tư (MO) là người ghi nhận lần mua thật (đổi 26/11/2026).
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen } from '../../../components/Screen';
 import { AppText } from '../../../components/AppText';
-import { Card } from '../../../components/Card';
 import { Button } from '../../../components/Button';
-import { ScreenHeader } from '../../../components/ScreenHeader';
+import { Card } from '../../../components/Card';
 import { EmptyState } from '../../../components/EmptyState';
+import { ScreenHeader } from '../../../components/ScreenHeader';
 import { StatusTag } from '../../../components/StatusTag';
 import { useMyPurchaseTasks } from '../../../api/hooks';
 import { colors, spacing } from '../../../theme/tokens';
-import type { ProfileStackParamList } from '../../../navigation/types';
-
-type Nav = NativeStackNavigationProp<ProfileStackParamList>;
 
 export function PurchaseListScreen() {
   const { t } = useTranslation();
-  const navigation = useNavigation<Nav>();
   const { data: tasks = [], isPending, refetch, isRefetching } = useMyPurchaseTasks();
 
   return (
@@ -55,16 +48,9 @@ export function PurchaseListScreen() {
                   ? ` · ${t('purchase.deadline', { date: task.deadline.slice(0, 10) })}`
                   : ''}
               </AppText>
-              <Button
-                label={t('purchase.record')}
-                onPress={() =>
-                  navigation.navigate('RecordPurchase', {
-                    requestId: task.purchaseRequestId,
-                    taskName: task.name,
-                  })
-                }
-                style={styles.action}
-              />
+              <AppText variant="sub" style={styles.hint}>
+                {t('purchase.recordedByOfficer')}
+              </AppText>
             </Card>
           ))
         )}

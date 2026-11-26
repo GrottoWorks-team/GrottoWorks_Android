@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Screen } from '../../components/Screen';
 import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
@@ -34,7 +33,7 @@ import {
 import { useRefreshControl } from '../../lib/useRefreshControl';
 import { formatVnd } from '../../lib/format';
 import { colors, radius, spacing } from '../../theme/tokens';
-import type { MainTabParamList, TasksStackParamList } from '../../navigation/types';
+import type { TasksStackParamList } from '../../navigation/types';
 
 type DetailRoute = RouteProp<TasksStackParamList, 'TaskDetail'>;
 type DetailNav = NativeStackNavigationProp<TasksStackParamList, 'TaskDetail'>;
@@ -370,21 +369,9 @@ export function TaskDetailScreen() {
               </View>
             ))}
             {myStatus === 'ACCEPTED' ? (
-              <Button
-                label={t('purchase.record')}
-                onPress={() => {
-                  const tabs =
-                    navigation.getParent<BottomTabNavigationProp<MainTabParamList>>();
-                  tabs?.navigate('Profile', {
-                    screen: 'RecordPurchase',
-                    params: {
-                      requestId: purchaseRequest.id,
-                      taskName: task.title,
-                    },
-                  });
-                }}
-                style={styles.purchaseAction}
-              />
+              <AppText variant="sub" style={styles.purchaseAction}>
+                {t('purchase.recordedByOfficer')}
+              </AppText>
             ) : null}
           </Card>
         ) : null}
