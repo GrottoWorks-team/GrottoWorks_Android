@@ -64,6 +64,7 @@ export function TaskDetailScreen() {
     data: startEligibility,
     isPending: eligibilityPending,
     isError: eligibilityError,
+    error: eligibilityFailure,
     refetch: refetchEligibility,
   } = useTaskStartEligibility(params.taskId);
   const refresh = useRefreshControl([
@@ -188,11 +189,17 @@ export function TaskDetailScreen() {
     myStatus === 'ACCEPTED' &&
     (task.backendStatus === 'NOT_STARTED' || task.backendStatus === 'IN_PROGRESS');
   // Chưa đủ điều kiện (giờ bắt đầu / thành viên / vật tư) → không cho bấm vào ca.
-  const startBlockers = startEligibility?.blockers ?? [];
-  // M-01: không tải được điều kiện → KHÔNG tự mở khoá check-in (an toàn hơn là cho vào ca sai).
-  const eligibilityUnknown = Boolean(eligibilityError) && !startEligibility;
-  // Ch?a c? k?t qu? (?ang t?i) c?ng ch?a cho v?o ca ? tr?nh check-in khi ch?a x?c minh.
-  const eligibilityUnverified = (eligibilityError || eligibilityPending) && !startEligibility;
+  // 26/11/2026: khi việc ĐÃ IN_PROGRESS thì điều kiện bắt đầu không còn ý nghĩa (BE trả blocker
+  // TASK_INVALID_STATE cho mọi task đã chạy) → bỏ qua, nếu không TNV không bao giờ vào ca được.
+  const taskAlreadyRunning = task.backendStatus === 'IN_PROGRESS';
+  const startBlockers = taskAlreadyRunning ? [] : (startEligibility?.blockers ?? []);
+  // 403 = tài khoản này không được đọc điều kiện (BE chỉ cho trưởng khu / người có assignment).
+  // Đây là thông tin tham khảo, KHÔNG được chặn vào ca.
+  const eligibilityForbidden = eligibilityError && eligibilityFailure instanceof ApiError && eligibilityFailure.status === 403;
+  // M-01: không tải được điều kiện (lỗi khác / đang tải) → KHÔNG tự mở khoá check-in.
+  const eligibilityUnknown = !taskAlreadyRunning && !eligibilityForbidden && Boolean(eligibilityError) && !startEligibility;
+  const eligibilityUnverified =
+    !taskAlreadyRunning && !eligibilityForbidden && (eligibilityError || eligibilityPending) && !startEligibility;
   const startBlocked = startBlockers.length > 0 || eligibilityUnverified;
 
   const onCancelRequest = async () => {

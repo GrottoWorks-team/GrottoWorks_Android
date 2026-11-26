@@ -203,7 +203,8 @@ export interface MaterialDto {
  * endpoint này) nên để 0 — màn TNV không dùng tới.
  */
 export async function materialsReal(): Promise<Material[]> {
-  const dtos = await http<MaterialDto[]>('/materials?size=200');
+  // 26/11/2026: BE chỉ nhận size 1–100 (400 INVALID_PAGE_SIZE) — xin 200 làm danh mục vật tư rỗng.
+  const dtos = await http<MaterialDto[]>('/materials?size=100');
   return dtos.map((dto) => ({
     id: dto.id,
     areaId: '',
