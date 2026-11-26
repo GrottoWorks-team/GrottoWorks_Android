@@ -6,6 +6,7 @@ import { TaskListScreen } from '../features/volunteer/TaskListScreen';
 import { TaskDetailScreen } from '../features/volunteer/TaskDetailScreen';
 import { OpenTaskDetailScreen } from '../features/volunteer/OpenTaskDetailScreen';
 import { TaskModelScreen } from '../features/volunteer/TaskModelScreen';
+import { EmergencyPurchaseScreen } from '../features/volunteer/EmergencyPurchaseScreen';
 import { HeaderBack } from './HeaderBack';
 import { colors } from '../theme/tokens';
 import type { TasksStackParamList } from './types';
@@ -44,6 +45,11 @@ export function TasksNavigator() {
         name="TaskModel"
         component={TaskModelScreen}
         options={{ title: t('tasks.model3dTitle') }}
+      />
+      <Stack.Screen
+        name="EmergencyPurchase"
+        component={EmergencyPurchaseScreen}
+        options={{ ...DETAIL_OPTIONS, title: t('emergency.title') }}
       />
     </Stack.Navigator>
   );

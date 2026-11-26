@@ -10,13 +10,7 @@
 //     (chỉ nhớ đơn đã gửi từ máy này) + huỷ đơn ném lỗi BE_UNSUPPORTED_*.
 //   - Mô hình 3D của khu vực → scene mock riêng ở màn `TaskModelScreen`.
 import { ApiError } from './client';
-import type {
-  PurchaseDto,
-  PurchaseRequestDetailDto,
-  PurchaseRequestItemDto,
-  PurchaseTaskDto,
-  TaskStartEligibilityDto,
-} from './real';
+import type { EmergencyPurchaseReceiptDto, TaskStartEligibilityDto } from './real';
 import {
   activeSeasonReal,
   applyForTaskReal,
@@ -33,9 +27,7 @@ import {
   myAttendanceReal,
   myAttendanceRequestsReal,
   myContributionsReal,
-  myPurchaseTasksReal,
-  purchaseRequestReal,
-  recordPurchaseReal,
+  recordEmergencyPurchaseReal,
   myRecognitionReal,
   myTasksReal,
   notificationsReal,
@@ -69,6 +61,7 @@ import type {
   MyContribution,
   NotificationItem,
   Skill,
+  SkillLevelName,
   Task,
   TaskAssignment,
   Timesheet,
@@ -130,10 +123,14 @@ export interface ProfilePatch {
   phone?: string;
   introduction?: string;
   communityId?: string;
-  /** Id kỹ năng trong danh mục BE (`GET /skills`). */
+  /** Id kỹ năng trong danh mục BE (`GET /skills`) — chỉ dùng khi không có `declaredSkills`. */
   skillIds?: string[];
+  /** 26/11/2026: kỹ năng + cấp bậc gửi BE (`{ skills: [...] }`). */
+  declaredSkills?: { skillId: string; skillLevel: SkillLevelName }[];
   /** Tên kỹ năng để cập nhật state ngay, không gửi lên BE. */
   skills?: string[];
+  /** Cấp bậc theo tên kỹ năng (state hiển thị, không gửi trực tiếp). */
+  skillLevels?: Record<string, SkillLevelName>;
   availability?: AvailabilitySlot[];
 }
 
@@ -151,11 +148,17 @@ export async function updateUser(_id: string, patch: ProfilePatch): Promise<User
     ...(patch.introduction !== undefined ? { introduction: patch.introduction } : {}),
     ...(patch.communityId !== undefined ? { communityId: patch.communityId } : {}),
   });
-  if (patch.skillIds) await replaceSkillsReal(patch.skillIds);
+  if (patch.declaredSkills && patch.declaredSkills.length > 0) {
+    await replaceSkillsReal(patch.declaredSkills);
+  } else if (patch.skillIds && patch.skillIds.length > 0) {
+    // Tương thích call site cũ: không có cấp bậc thì gửi BASIC (BE cũng mặc định BASIC).
+    await replaceSkillsReal(patch.skillIds.map((skillId) => ({ skillId, skillLevel: 'BASIC' as const })));
+  }
   if (patch.availability) await replaceAvailabilityReal(patch.availability);
   return {
     ...base,
     ...(patch.skills ? { skills: patch.skills } : {}),
+    ...(patch.skillLevels ? { skillLevels: patch.skillLevels } : {}),
     ...(patch.availability ? { availability: patch.availability } : {}),
   };
 }
@@ -325,7 +328,7 @@ export async function listMyTimesheets(_volunteerId: string): Promise<Timesheet[
  * (mặc định PENDING).
  */
 export async function listMyAttendanceRequests(
-  status: AttendanceRequestItem['status'] = 'PENDING',
+  status?: AttendanceRequestItem['status'],
 ): Promise<AttendanceRequestItem[]> {
   const rows = await myAttendanceRequestsReal(status);
   return rows.map((row) => ({
@@ -511,47 +514,39 @@ export async function offerLoanItem(input: {
   await offerLoanReal({ ...input, seasonId: season.id });
 }
 
-// ── Mua hàng (việc đi mua của TNV — F-RES-09, BR-30) ───────────────────────
-export type {
-  PurchaseDto,
-  PurchaseRequestDetailDto,
-  PurchaseRequestItemDto,
-  PurchaseTaskDto,
-  TaskStartEligibilityDto,
-};
+// ── Mua khẩn cấp khi đang làm việc (Resource) ──────────────────────────────
+// TNV không còn "việc đi mua": thiếu số lượng lớn → MO gửi yêu cầu bổ sung cho
+// Ban phụ trách. Chỉ khi đang thực hiện nhiệm vụ mà thiếu vật tư khẩn cấp, TNV mới
+// tự mua — bắt buộc có hoá đơn và tổng tiền < 500.000đ (BE chặn `EMERGENCY_PURCHASE_LIMIT`).
+export type { EmergencyPurchaseReceiptDto, TaskStartEligibilityDto };
 
-/** Việc đi mua còn hiệu lực của tôi: `GET /users/me/tasks?taskType=PURCHASE`. */
-export async function listMyPurchaseTasks(): Promise<PurchaseTaskDto[]> {
-  return myPurchaseTasksReal();
-}
+/** Ngưỡng mua khẩn cấp của TNV (đồng). Phải khớp `SelfPurchaseReceipt.EmergencyPurchaseLimit`. */
+export const EMERGENCY_PURCHASE_LIMIT = 500_000;
 
 /** Điều kiện bắt đầu việc: `GET /tasks/{taskId}/start-eligibility`. */
 export async function getTaskStartEligibility(taskId: string): Promise<TaskStartEligibilityDto> {
   return taskStartEligibilityReal(taskId);
 }
 
-/** Đơn mua cần ghi nhận: `GET /purchase-requests/{requestId}`. */
-export async function getPurchaseRequest(
-  requestId: string,
-): Promise<PurchaseRequestDetailDto> {
-  return purchaseRequestReal(requestId);
-}
-
-export interface RecordPurchaseInput {
-  requestId: string;
+export interface EmergencyPurchaseInput {
+  taskId: string;
+  buyerName: string;
   supplierName?: string;
   purchaseDate?: string;
-  items: { purchaseRequestItemId: string; purchasedQuantity: number; unitPrice: number }[];
-  /** File hoá đơn đã upload bằng `uploadPurchaseReceipt` (BE: `receipts: [{id}]`). */
-  receiptFileIds?: string[];
+  items: { materialId: string; quantity: number; unitPrice: number }[];
+  /** File hoá đơn đã upload bằng `uploadEmergencyReceipt` (BE: `invoices: [{id}]`). */
+  receiptFileIds: string[];
+  note?: string;
 }
 
-/** Ghi nhận lần mua: `POST /purchase-requests/{requestId}/purchases` (kho CHƯA tăng). */
-export async function recordPurchase(input: RecordPurchaseInput): Promise<PurchaseDto> {
-  return recordPurchaseReal(input);
+/** Ghi nhận mua khẩn cấp: `POST /tasks/{taskId}/emergency-purchases`. */
+export async function recordEmergencyPurchase(
+  input: EmergencyPurchaseInput,
+): Promise<EmergencyPurchaseReceiptDto> {
+  return recordEmergencyPurchaseReal(input);
 }
 
-/** Upload 1 ảnh/PDF hoá đơn (BE: purpose `PURCHASE_RECEIPT`, ≤15MB) → `fileId`. */
-export async function uploadPurchaseReceipt(uri: string): Promise<string> {
+/** Upload 1 ảnh hoá đơn mua khẩn cấp (purpose `PURCHASE_RECEIPT`) → `fileId`. */
+export async function uploadEmergencyReceipt(uri: string): Promise<string> {
   return uploadFileToStorage(uri, 'PurchaseReceipt');
 }

@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Screen } from '../../components/Screen';
 import { AppText } from '../../components/AppText';
 import { Card } from '../../components/Card';
@@ -24,7 +23,6 @@ import {
   useMyAttendanceRequests,
   useMyTimesheets,
   useRespondAssignment,
-  usePurchaseRequest,
   useSubmitReview,
   useTask,
   useTaskMaterials,
@@ -33,7 +31,7 @@ import {
 } from '../../api/hooks';
 import { useRefreshControl } from '../../lib/useRefreshControl';
 import { colors, radius, spacing } from '../../theme/tokens';
-import type { MainTabParamList, TasksStackParamList } from '../../navigation/types';
+import type { TasksStackParamList } from '../../navigation/types';
 
 type DetailRoute = RouteProp<TasksStackParamList, 'TaskDetail'>;
 type DetailNav = NativeStackNavigationProp<TasksStackParamList, 'TaskDetail'>;
@@ -61,12 +59,14 @@ export function TaskDetailScreen() {
   const checkOut = useCheckOut(volunteerId);
   const cancelRequest = useCancelAttendanceRequest(volunteerId);
   const { data: progress = [] } = useTaskProgress(params.taskId);
-  // Việc đi mua: task mang `purchaseRequestId` → tải đơn mua để hiện "Vật tư cần mua"
-  // (trước 12/11/2026 TNV không thấy ở đây, chỉ thấy trong màn Ghi nhận mua).
-  const purchaseRequestId = task?.purchaseRequestId ?? undefined;
-  const { data: purchaseRequest } = usePurchaseRequest(purchaseRequestId);
   // Điều kiện bắt đầu việc: tới giờ bắt đầu / đủ thành viên / đã cấp đủ vật tư (12/11/2026).
-  const { data: startEligibility } = useTaskStartEligibility(params.taskId);
+  const {
+    data: startEligibility,
+    isPending: eligibilityPending,
+    isError: eligibilityError,
+    error: eligibilityFailure,
+    refetch: refetchEligibility,
+  } = useTaskStartEligibility(params.taskId);
   const refresh = useRefreshControl([
     taskQuery.refetch,
     areasQuery.refetch,
@@ -160,9 +160,10 @@ export function TaskDetailScreen() {
     } catch (error) {
       // Không im lặng: hiện lỗi ngay trong modal (toast có thể bị modal che).
       const raw = error instanceof ApiError ? error.message : '';
-      const friendly =
-        (error instanceof ApiError && error.status === 0) ||
-        /EVIDENCE_UPLOAD|UPLOAD_SIZE/i.test(raw)
+      const offline = error instanceof ApiError && error.status === 0;
+      const friendly = offline
+        ? t('tasks.submitUnsynced')
+        : /EVIDENCE_UPLOAD|UPLOAD_SIZE/i.test(raw)
           ? t('tasks.evidenceUploadFailed')
           : raw || t('common.error');
       setSubmitError(friendly);
@@ -188,8 +189,18 @@ export function TaskDetailScreen() {
     myStatus === 'ACCEPTED' &&
     (task.backendStatus === 'NOT_STARTED' || task.backendStatus === 'IN_PROGRESS');
   // Chưa đủ điều kiện (giờ bắt đầu / thành viên / vật tư) → không cho bấm vào ca.
-  const startBlockers = startEligibility?.blockers ?? [];
-  const startBlocked = startBlockers.length > 0;
+  // 26/11/2026: khi việc ĐÃ IN_PROGRESS thì điều kiện bắt đầu không còn ý nghĩa (BE trả blocker
+  // TASK_INVALID_STATE cho mọi task đã chạy) → bỏ qua, nếu không TNV không bao giờ vào ca được.
+  const taskAlreadyRunning = task.backendStatus === 'IN_PROGRESS';
+  const startBlockers = taskAlreadyRunning ? [] : (startEligibility?.blockers ?? []);
+  // 403 = tài khoản này không được đọc điều kiện (BE chỉ cho trưởng khu / người có assignment).
+  // Đây là thông tin tham khảo, KHÔNG được chặn vào ca.
+  const eligibilityForbidden = eligibilityError && eligibilityFailure instanceof ApiError && eligibilityFailure.status === 403;
+  // M-01: không tải được điều kiện (lỗi khác / đang tải) → KHÔNG tự mở khoá check-in.
+  const eligibilityUnknown = !taskAlreadyRunning && !eligibilityForbidden && Boolean(eligibilityError) && !startEligibility;
+  const eligibilityUnverified =
+    !taskAlreadyRunning && !eligibilityForbidden && (eligibilityError || eligibilityPending) && !startEligibility;
+  const startBlocked = startBlockers.length > 0 || eligibilityUnverified;
 
   const onCancelRequest = async () => {
     if (!pendingRequest) return;
@@ -335,49 +346,6 @@ export function TaskDetailScreen() {
           </Card>
         )}
 
-        {/* Việc ĐI MUA: hiện đúng danh sách vật tư + số lượng của đơn mua để TNV
-            biết cần mua gì, kèm lối tắt sang màn "Ghi nhận lần mua". */}
-        {task.taskType === 'PURCHASE' && purchaseRequest ? (
-          <Card style={styles.card}>
-            <AppText variant="label">{t('tasks.purchaseTitle')}</AppText>
-            <AppText variant="sub">{t('tasks.purchaseHint')}</AppText>
-            {purchaseRequest.items.map((item) => (
-              <View key={item.id} style={styles.purchaseRow}>
-                <AppText variant="h2" style={styles.purchaseName}>
-                  {item.materialName}
-                </AppText>
-                <AppText variant="sub">
-                  {t('purchase.requested', { qty: item.requestedQuantity, unit: item.unit })}
-                </AppText>
-                {typeof item.estimatedCost === 'number' && item.estimatedCost > 0 ? (
-                  <AppText variant="sub">
-                    {t('tasks.purchaseEstimate', {
-                      amount: item.estimatedCost.toLocaleString('vi-VN'),
-                    })}
-                  </AppText>
-                ) : null}
-              </View>
-            ))}
-            {myStatus === 'ACCEPTED' ? (
-              <Button
-                label={t('purchase.record')}
-                onPress={() => {
-                  const tabs =
-                    navigation.getParent<BottomTabNavigationProp<MainTabParamList>>();
-                  tabs?.navigate('Profile', {
-                    screen: 'RecordPurchase',
-                    params: {
-                      requestId: purchaseRequest.id,
-                      taskName: task.title,
-                    },
-                  });
-                }}
-                style={styles.purchaseAction}
-              />
-            ) : null}
-          </Card>
-        ) : null}
-
         {/* Hành động theo trạng thái phân công của TNV */}
         {myStatus === 'PENDING' && (
           <Card style={[styles.card, styles.inviteCard]}>
@@ -416,6 +384,20 @@ export function TaskDetailScreen() {
                 <AppText variant="label" color={colors.dangerFg}>
                   {t('tasks.startBlockedTitle')}
                 </AppText>
+                {eligibilityUnverified ? (
+                  <>
+                    <AppText variant="sub" style={styles.blockerItem}>
+                      • {eligibilityUnknown ? t('tasks.startEligibilityUnknown') : t('tasks.startEligibilityChecking')}
+                    </AppText>
+                    <Button
+                      label={t('common.retry')}
+                      variant="outline"
+                      size="sm"
+                      onPress={() => void refetchEligibility()}
+                      loading={eligibilityPending}
+                    />
+                  </>
+                ) : null}
                 {startBlockers.map((blocker) => (
                   <AppText key={blocker.code} variant="sub" style={styles.blockerItem}>
                     • {t(`errors.${blocker.code}`, { defaultValue: blocker.detail })}
@@ -452,6 +434,25 @@ export function TaskDetailScreen() {
             )}
           </Card>
         )}
+        {/* Mua khẩn cấp: chỉ khi việc ĐANG thực hiện mà thiếu vật tư (giá trị < 500.000đ).
+            Thiếu vật tư số lượng lớn → MO gửi yêu cầu bổ sung cho Ban phụ trách. */}
+        {!isPurchase && myStatus === 'ACCEPTED' && task.backendStatus === 'IN_PROGRESS' ? (
+          <Card style={styles.card}>
+            <AppText variant="label">{t('emergency.title')}</AppText>
+            <AppText variant="sub">{t('emergency.hint')}</AppText>
+            <Button
+              label={t('emergency.open')}
+              variant="outline"
+              onPress={() =>
+                navigation.navigate('EmergencyPurchase', {
+                  taskId: task.id,
+                  taskTitle: task.title,
+                })
+              }
+            />
+          </Card>
+        ) : null}
+
         {canSubmitReview && (
           <Button
             label={t('tasks.submitReview')}
@@ -651,15 +652,8 @@ const styles = StyleSheet.create({
   inviteCard: { borderColor: colors.pendingFg },
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   flex1: { flex: 1 },
-  purchaseRow: {    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.hairline,
-    paddingTop: spacing.sm,
-    gap: 2,
-  },
   blockers: { gap: 4, marginTop: spacing.xs },
   blockerItem: { color: colors.dangerFg },
-  purchaseName: { flexShrink: 1 },
-  purchaseAction: { marginTop: spacing.sm },
   statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   progressRow: { gap: 2, paddingVertical: 2 },
   backdrop: {

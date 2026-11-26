@@ -38,32 +38,41 @@ export function PhotoPicker({ photos, onChange, error, label, hint, max = MAX_PH
   };
 
   const takePhoto = async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(t('tasks.permissionTitle'), t('tasks.cameraPermission'));
-      return;
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(t('tasks.permissionTitle'), t('tasks.cameraPermission'));
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        quality: 0.6,
+        allowsEditing: false,
+      });
+      if (!result.canceled) addUris(result.assets.map((a) => a.uri));
+    } catch {
+      // Quyền bị từ chối / camera hỏng: báo và cho chọn lại, KHÔNG làm mất phần đã nhập.
+      Alert.alert(t('tasks.permissionTitle'), t('tasks.photoPickerFailed'));
     }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 0.6,
-      allowsEditing: false,
-    });
-    if (!result.canceled) addUris(result.assets.map((a) => a.uri));
   };
 
   const pickFromLibrary = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(t('tasks.permissionTitle'), t('tasks.libraryPermission'));
-      return;
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(t('tasks.permissionTitle'), t('tasks.libraryPermission'));
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.6,
+        allowsMultipleSelection: true,
+        selectionLimit: max - photos.length,
+      });
+      if (!result.canceled) addUris(result.assets.map((a) => a.uri));
+    } catch {
+      Alert.alert(t('tasks.permissionTitle'), t('tasks.photoPickerFailed'));
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.6,
-      allowsMultipleSelection: true,
-      selectionLimit: max - photos.length,
-    });
-    if (!result.canceled) addUris(result.assets.map((a) => a.uri));
   };
 
   const removeAt = (index: number) => {
@@ -83,7 +92,15 @@ export function PhotoPicker({ photos, onChange, error, label, hint, max = MAX_PH
         <View style={styles.grid}>
           {photos.map((uri, i) => (
             <View key={`${uri}-${i}`} style={styles.thumbWrap}>
-              <Image source={{ uri }} style={styles.thumb} />
+              <Image
+                source={{ uri }}
+                style={styles.thumb}
+                onError={() => {
+                  // Ảnh hỏng/không đọc được → bỏ khỏi danh sách và báo, không crash.
+                  removeAt(i);
+                  Alert.alert(t('tasks.permissionTitle'), t('tasks.photoBroken'));
+                }}
+              />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t('tasks.removePhoto')}

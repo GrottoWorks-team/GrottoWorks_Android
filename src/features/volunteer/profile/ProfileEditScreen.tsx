@@ -16,7 +16,8 @@ import { useToast } from '../../../components/Toast';
 import { useAuth } from '../../../auth/AuthContext';
 import { useCommunities, useSkills, useUpdateProfile } from '../../../api/hooks';
 import { ApiError } from '../../../api';
-import type { AvailabilitySlot } from '../../../types';
+import { SKILL_LEVELS } from '../../../types';
+import type { AvailabilitySlot, SkillLevelName } from '../../../types';
 import { colors, radius, spacing } from '../../../theme/tokens';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -44,15 +45,23 @@ export function ProfileEditScreen() {
   const [introduction, setIntroduction] = useState(user?.introduction ?? '');
   const [communityId, setCommunityId] = useState(user?.communityId ?? '');
   const [skills, setSkills] = useState<string[]>(user?.skills ?? []);
+  // 26/11/2026: cấp bậc từng kỹ năng — BE lưu skill_level; thiếu thì BE tính là BASIC.
+  const [levels, setLevels] = useState<Record<string, SkillLevelName>>(user?.skillLevels ?? {});
   const [availability, setAvailability] = useState<AvailabilitySlot[]>(user?.availability ?? []);
   const [nameError, setNameError] = useState(false);
 
   if (!user) return null;
 
   const toggleSkill = (skillName: string) =>
-    setSkills((prev) =>
-      prev.includes(skillName) ? prev.filter((x) => x !== skillName) : [...prev, skillName],
-    );
+    setSkills((prev) => {
+      if (prev.includes(skillName)) return prev.filter((x) => x !== skillName);
+      // Mặc định BASIC cho kỹ năng mới chọn (đồng bộ với mặc định của BE).
+      setLevels((current) => (current[skillName] ? current : { ...current, [skillName]: 'BASIC' }));
+      return [...prev, skillName];
+    });
+
+  const setLevel = (skillName: string, level: SkillLevelName) =>
+    setLevels((prev) => ({ ...prev, [skillName]: level }));
 
   const updateSlot = (index: number, patch: Partial<AvailabilitySlot>) =>
     setAvailability((prev) => prev.map((slot, i) => (i === index ? { ...slot, ...patch } : slot)));
@@ -80,17 +89,24 @@ export function ProfileEditScreen() {
       return;
     }
     try {
-      const skillIds = catalog
-        .filter((s) => skills.includes(s.name))
-        .map((s) => s.id);
+      const picked = catalog.filter((s) => skills.includes(s.name));
+      const skillIds = picked.map((s) => s.id);
+      // Gửi kèm cấp bậc (nếu danh mục kỹ năng có dữ liệu) để BE không lưu level null.
+      const declaredSkills = picked.map((s) => ({
+        skillId: s.id,
+        skillLevel: levels[s.name] ?? 'BASIC',
+      }));
       const updated = await update.mutateAsync({
         name: name.trim(),
         phone: phone.trim(),
         introduction: introduction.trim(),
         ...(communityId ? { communityId } : {}),
         // Chỉ gửi khi danh mục kỹ năng có dữ liệu, tránh xoá trắng kỹ năng trên BE.
-        ...(catalog.length > 0 ? { skillIds } : {}),
+        ...(catalog.length > 0 ? { declaredSkills, skillIds } : {}),
         skills,
+        skillLevels: Object.fromEntries(
+          skills.map((name) => [name, levels[name] ?? ('BASIC' as SkillLevelName)]),
+        ),
         availability,
       });
       setUser({ ...user, ...updated });
@@ -202,6 +218,32 @@ export function ProfileEditScreen() {
               );
             })}
           </View>
+          {skills.length > 0 ? (
+            <AppText variant="sub">{t('profile.skillLevelHint')}</AppText>
+          ) : null}
+          {skills.map((skillName) => (
+            <View key={`level-${skillName}`} style={styles.levelRow}>
+              <AppText variant="sub" style={styles.levelName}>
+                {skillName}
+              </AppText>
+              <View style={styles.levelChips}>
+                {SKILL_LEVELS.map((level) => {
+                  const active = (levels[skillName] ?? 'BASIC') === level;
+                  return (
+                    <Pressable
+                      key={level}
+                      onPress={() => setLevel(skillName, level)}
+                      style={[styles.chip, styles.levelChip, active ? styles.chipOn : null]}
+                    >
+                      <AppText variant="sub" color={active ? '#FFFFFF' : colors.ink}>
+                        {t(`skillLevel.${level}`)}
+                      </AppText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
         </Card>
 
         <Card style={styles.card}>
@@ -271,6 +313,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.panel,
   },
   chipOn: { backgroundColor: colors.pine, borderColor: colors.pine },
+  levelRow: { marginTop: spacing.sm, gap: 6 },
+  levelName: { fontWeight: '600' },
+  levelChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  levelChip: { paddingHorizontal: spacing.sm, paddingVertical: 4 },
   input: {
     borderWidth: 1,
     borderColor: colors.hairline,
