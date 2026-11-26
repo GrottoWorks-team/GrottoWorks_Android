@@ -23,6 +23,7 @@ import type {
   NotificationItem,
   Role,
   Skill,
+  SkillLevelName,
   Task,
   TaskAssignment,
   Timesheet,
@@ -48,6 +49,8 @@ export interface UserProfileDto {
   communityId?: string | null;
   introduction?: string | null;
   skillIds: string[];
+  /** 26/11/2026: BE trả kèm cấp bậc từng kỹ năng (null = chưa xếp hạng). */
+  skills?: { skillId: string; skillLevel?: string | null }[] | null;
   availability: { availableFrom: string; availableTo: string; note?: string | null }[];
 }
 
@@ -108,7 +111,11 @@ function hueFrom(seed: string): number {
   return hue;
 }
 
-export function toUser(dto: UserProfileDto, skillNames: string[] = []): User {
+export function toUser(
+  dto: UserProfileDto,
+  skillNames: string[] = [],
+  skillLevels?: Record<string, SkillLevelName>,
+): User {
   return {
     id: dto.id,
     name: dto.displayName || dto.email,
@@ -121,6 +128,7 @@ export function toUser(dto: UserProfileDto, skillNames: string[] = []): User {
     ...(dto.phone ? { phone: dto.phone } : {}),
     ...(dto.introduction ? { introduction: dto.introduction } : {}),
     skills: skillNames,
+    ...(skillLevels && Object.keys(skillLevels).length > 0 ? { skillLevels } : {}),
     availability: (dto.availability ?? []).map((slot) => ({
       availableFrom: slot.availableFrom,
       availableTo: slot.availableTo,
@@ -222,7 +230,17 @@ export async function currentUser(): Promise<User> {
   const skillNames = profile.skillIds
     .map((id) => nameById.get(id))
     .filter((name): name is string => Boolean(name));
-  return toUser(profile, skillNames);
+  // Cấp bậc lưu theo TÊN kỹ năng để màn chỉnh sửa khớp với danh mục hiển thị.
+  const skillLevels: Record<string, SkillLevelName> = {};
+  for (const declared of profile.skills ?? []) {
+    const name = nameById.get(declared.skillId);
+    const level = declared.skillLevel?.toUpperCase();
+    if (!name || !level) continue;
+    if (level === 'BASIC' || level === 'INTERMEDIATE' || level === 'ADVANCED' || level === 'EXPERT') {
+      skillLevels[name] = level;
+    }
+  }
+  return toUser(profile, skillNames, skillLevels);
 }
 
 /**
@@ -248,9 +266,15 @@ export async function updateProfileReal(patch: Partial<User>): Promise<User> {
   return toUser(dto, patch.skills ?? []);
 }
 
-/** PUT /api/v1/users/me/skills — thay toàn bộ danh sách kỹ năng đã khai báo. */
-export async function replaceSkillsReal(skillIds: string[]): Promise<UserProfileDto> {
-  return http<UserProfileDto>('/users/me/skills', { method: 'PUT', body: { skillIds } });
+/**
+ * PUT /api/v1/users/me/skills — thay toàn bộ danh sách kỹ năng đã khai báo.
+ * 26/11/2026: gửi kèm cấp bậc (`skills`) để BE không lưu skill_level = null nữa —
+ * level null khiến TNV bị 409 TASK_SKILL_MISMATCH dù đã khai báo đúng kỹ năng.
+ */
+export async function replaceSkillsReal(
+  skills: { skillId: string; skillLevel: SkillLevelName }[],
+): Promise<UserProfileDto> {
+  return http<UserProfileDto>('/users/me/skills', { method: 'PUT', body: { skills } });
 }
 
 /** PUT /api/v1/users/me/availability — thay toàn bộ lịch rảnh (UTC range). */

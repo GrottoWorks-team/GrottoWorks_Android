@@ -13,7 +13,14 @@ export interface User {
   introduction?: string;
   /** Lịch rảnh dạng khoảng thời gian (BE: UTC range, availableTo > availableFrom). */
   availability?: AvailabilitySlot[];
+  /** Cấp bậc theo TÊN kỹ năng (BE `skill_level`). Thiếu = chưa xếp hạng (BE tính là BASIC). */
+  skillLevels?: Record<string, SkillLevelName>;
 }
+
+/** Bốn mức thành thạo của BE (Identity.Domain SkillLevels). */
+export type SkillLevelName = 'BASIC' | 'INTERMEDIATE' | 'ADVANCED' | 'EXPERT';
+
+export const SKILL_LEVELS: SkillLevelName[] = ['BASIC', 'INTERMEDIATE', 'ADVANCED', 'EXPERT'];
 
 /** Cộng đoàn trong giáo xứ (`GET /parishes/{id}/communities`). */
 export interface CommunityOption {

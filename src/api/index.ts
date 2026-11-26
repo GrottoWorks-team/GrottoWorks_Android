@@ -61,6 +61,7 @@ import type {
   MyContribution,
   NotificationItem,
   Skill,
+  SkillLevelName,
   Task,
   TaskAssignment,
   Timesheet,
@@ -122,10 +123,14 @@ export interface ProfilePatch {
   phone?: string;
   introduction?: string;
   communityId?: string;
-  /** Id kỹ năng trong danh mục BE (`GET /skills`). */
+  /** Id kỹ năng trong danh mục BE (`GET /skills`) — chỉ dùng khi không có `declaredSkills`. */
   skillIds?: string[];
+  /** 26/11/2026: kỹ năng + cấp bậc gửi BE (`{ skills: [...] }`). */
+  declaredSkills?: { skillId: string; skillLevel: SkillLevelName }[];
   /** Tên kỹ năng để cập nhật state ngay, không gửi lên BE. */
   skills?: string[];
+  /** Cấp bậc theo tên kỹ năng (state hiển thị, không gửi trực tiếp). */
+  skillLevels?: Record<string, SkillLevelName>;
   availability?: AvailabilitySlot[];
 }
 
@@ -143,11 +148,17 @@ export async function updateUser(_id: string, patch: ProfilePatch): Promise<User
     ...(patch.introduction !== undefined ? { introduction: patch.introduction } : {}),
     ...(patch.communityId !== undefined ? { communityId: patch.communityId } : {}),
   });
-  if (patch.skillIds) await replaceSkillsReal(patch.skillIds);
+  if (patch.declaredSkills && patch.declaredSkills.length > 0) {
+    await replaceSkillsReal(patch.declaredSkills);
+  } else if (patch.skillIds && patch.skillIds.length > 0) {
+    // Tương thích call site cũ: không có cấp bậc thì gửi BASIC (BE cũng mặc định BASIC).
+    await replaceSkillsReal(patch.skillIds.map((skillId) => ({ skillId, skillLevel: 'BASIC' as const })));
+  }
   if (patch.availability) await replaceAvailabilityReal(patch.availability);
   return {
     ...base,
     ...(patch.skills ? { skills: patch.skills } : {}),
+    ...(patch.skillLevels ? { skillLevels: patch.skillLevels } : {}),
     ...(patch.availability ? { availability: patch.availability } : {}),
   };
 }
