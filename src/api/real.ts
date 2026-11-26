@@ -719,103 +719,53 @@ export async function myAttendanceRequestsReal(
   return await http<AttendanceRequestDto[]>(`/users/me/attendance-requests${query}`);
 }
 
-// ── Mua hàng (Resource F-RES-09 — BR-30) ───────────────────────────────────
-// TNV được trưởng khu giao việc đi mua (`taskType = PURCHASE`) ghi lại lần mua
-// thật: số lượng + đơn giá + nhà cung cấp. BE KHÔNG nhập kho ở bước này (BR-26),
-// kho chỉ tăng khi trưởng ban vật tư xác nhận giao (`POST /purchases/{id}/confirm-delivery`).
+// ── Mua khẩn cấp của TNV (Resource — chỉ khi đang làm nhiệm vụ, < 500.000đ) ──
+// TNV KHÔNG còn "việc đi mua": thiếu vật tư số lượng lớn → MO gửi yêu cầu bổ sung
+// cho Ban phụ trách. Trong lúc làm nhiệm vụ, nếu thiếu vật tư khẩn cấp, TNV được tự
+// mua rồi ghi nhận tại đây (bắt buộc có hoá đơn, tổng tiền < 500.000đ).
 
-/** Việc đi mua đã giao cho tôi (`GET /users/me/tasks?taskType=PURCHASE`). */
-export interface PurchaseTaskDto {
-  id: string;
-  name: string;
-  status: string;
-  purchaseRequestId: string;
-  deadline?: string | null;
-}
-
-/** Một dòng vật tư của đơn mua (`GET /purchase-requests/{id}`). */
-export interface PurchaseRequestItemDto {
-  id: string;
-  materialId: string;
-  materialCode?: string;
-  materialName: string;
-  unit: string;
-  requestedQuantity: number;
-  estimatedCost?: number | null;
-}
-
-export interface PurchaseRequestDetailDto {
+/** Biên lai mua khẩn cấp đã ghi nhận (`POST /tasks/{taskId}/emergency-purchases`). */
+export interface EmergencyPurchaseReceiptDto {
   id: string;
   workAreaId: string;
-  status: string;
-  items: PurchaseRequestItemDto[];
-  estimatedTotal?: { amount: number; currency: string } | null;
-  version: number;
-}
-
-export interface PurchaseDto {
-  id: string;
-  purchaseRequestId: string;
-  taskId: string;
+  seasonId: string;
+  taskId?: string | null;
+  /** `MO_SELF_PURCHASE` | `VOLUNTEER_EMERGENCY`. */
+  source: string;
+  buyerName: string;
   supplierName?: string | null;
   purchaseDate: string;
-  totalCost: { amount: number; currency: string };
-  status: string;
-  items: {
-    id: string;
-    materialId: string;
-    purchasedQuantity: number;
-    unitPrice: { amount: number; currency: string };
-  }[];
-  version: number;
+  /** VND — BE trả số tiền đã tính server-side (không tin client). */
+  totalCost: number;
+  invoiceFileIds: string[];
+  note?: string | null;
+  createdAt: string;
 }
 
-/**
- * GET /api/v1/users/me/tasks?taskType=PURCHASE — việc đi mua còn hiệu lực.
- * Việc đã huỷ/hoàn thành không cần ghi nhận nữa nên lọc ngay ở client.
- */
-export async function myPurchaseTasksReal(): Promise<PurchaseTaskDto[]> {
-  const dtos = await http<TaskDto[]>('/users/me/tasks?taskType=PURCHASE&size=100');
-  return dtos
-    .filter(
-      (dto) =>
-        Boolean(dto.purchaseRequestId) &&
-        !['CANCELLED', 'COMPLETED'].includes((dto.status ?? '').toUpperCase()),
-    )
-    .map((dto) => ({
-      id: dto.id,
-      name: dto.name,
-      status: (dto.status ?? '').toUpperCase(),
-      purchaseRequestId: dto.purchaseRequestId as string,
-      deadline: dto.deadline ?? null,
-    }));
-}
-
-/** GET /api/v1/purchase-requests/{requestId} — dòng vật tư cần mua (VOLUNTEER đọc được). */
-export async function purchaseRequestReal(requestId: string): Promise<PurchaseRequestDetailDto> {
-  return await http<PurchaseRequestDetailDto>(`/purchase-requests/${requestId}`);
-}
-
-/** POST /api/v1/purchase-requests/{requestId}/purchases — ghi nhận lần mua của buyer. */
-export async function recordPurchaseReal(input: {
-  requestId: string;
+/** POST /api/v1/tasks/{taskId}/emergency-purchases — TNV đang làm việc ghi nhận mua khẩn cấp. */
+export async function recordEmergencyPurchaseReal(input: {
+  taskId: string;
+  buyerName: string;
   supplierName?: string;
   purchaseDate?: string;
-  items: { purchaseRequestItemId: string; purchasedQuantity: number; unitPrice: number }[];
+  items: { materialId: string; quantity: number; unitPrice: number }[];
   /** File hoá đơn đã upload (`uploadFileToStorage(uri, 'PurchaseReceipt')`). */
-  receiptFileIds?: string[];
-}): Promise<PurchaseDto> {
-  return await http<PurchaseDto>(`/purchase-requests/${input.requestId}/purchases`, {
+  receiptFileIds: string[];
+  note?: string;
+}): Promise<EmergencyPurchaseReceiptDto> {
+  return await http<EmergencyPurchaseReceiptDto>(`/tasks/${input.taskId}/emergency-purchases`, {
     method: 'POST',
     body: {
+      buyerName: input.buyerName.trim(),
       supplierName: input.supplierName?.trim() || null,
       purchaseDate: input.purchaseDate || null,
       items: input.items.map((item) => ({
-        purchaseRequestItemId: item.purchaseRequestItemId,
-        purchasedQuantity: item.purchasedQuantity,
+        materialId: item.materialId,
+        quantity: item.quantity,
         unitPrice: item.unitPrice,
       })),
-      receipts: (input.receiptFileIds ?? []).map((id) => ({ id })),
+      invoices: input.receiptFileIds.map((id) => ({ id })),
+      note: input.note?.trim() || null,
     },
   });
 }

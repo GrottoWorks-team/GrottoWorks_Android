@@ -27,9 +27,11 @@ export type TasksStackParamList = {
   OpenDetail: { taskId: string };
   /** Mô hình 3D của khu vực (TNV xem lớp thi công gắn với nhiệm vụ đã nhận). */
   TaskModel: { taskId: string; areaId: string; areaName?: string; taskTitle?: string };
+  /** Mua khẩn cấp khi đang làm việc mà thiếu vật tư (giá trị < 500.000đ). */
+  EmergencyPurchase: { taskId: string; taskTitle?: string };
 };
 
-// Stack lồng trong tab Hồ sơ: xem → chỉnh sửa / đóng góp / quyên góp / cho mượn / việc đi mua.
+// Stack lồng trong tab Hồ sơ: xem → chỉnh sửa / đóng góp / quyên góp / cho mượn.
 export type ProfileStackParamList = {
   ProfileView: undefined;
   ProfileEdit: undefined;
@@ -37,10 +39,6 @@ export type ProfileStackParamList = {
   Pledge: undefined;
   LoanOffer: undefined;
   NotificationSettings: undefined;
-  /** Việc đi mua của tôi (F-RES-09). */
-  Purchases: undefined;
-  /** Ghi nhận lần mua cho một đơn đã duyệt. */
-  RecordPurchase: { requestId: string; taskName: string };
 };
 
 declare global {
